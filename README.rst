@@ -1,5 +1,5 @@
 EULexistdb
-=========
+==========
 
 EULexistdb is a `Python <http://www.python.org/>`_ module that
 provides utilities and classes for interacting with the `eXist-db XML
