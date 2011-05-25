@@ -1,36 +1,40 @@
-from distutils.command.build_py import build_py
-import os
-import sys
-
-from setuptools import setup
+#!/usr/bin/env python
+from setuptools import setup, find_packages
 
 from eulexistdb import __version__
 
-# fullsplit and packages calculation inspired by django setup.py
+CLASSIFIERS = [
+    'Development Status :: 4 - Beta',
+    'Framework :: Django',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: Apache Software License',
+    'Natural Language :: English',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+    'Topic :: Text Processing :: Markup :: XML',
+]
 
-def fullsplit(path):
-    result = []
-    while path:
-        path, tail = os.path.split(path)
-        result.append(tail)
-    result.reverse()
-    return result
+LONG_DESCRIPTION = None
+try:
+    # read the description if it's there
+    with open('README.rst') as desc_f:
+        LONG_DESCRIPTION = desc_f.read()
+except:
+    pass
 
-packages = []
-for path, dirs, files in os.walk(__file__):
-    if '.svn' in dirs:
-        dirs.remove('.svn')
-    if '__init__.py' in files:
-        packages.append(path.replace(os.path.sep, '.'))
 
 setup(
     name='eulexistdb',
     version=__version__,
     author='Emory University Libraries',
     author_email='libsysdev-l@listserv.cc.emory.edu',
-    packages=packages,
-    package_dir={'': '.'},
+    url='https://github.com/emory-libraries/eulexistdb',
+    packages=find_packages(),
     install_requires=[
-#        'eulxml',
+        'eulxml',
     ],
+    description='Idiomatic access to the eXist-db XML Database',
+    long_description=LONG_DESCRIPTION,
+    classifiers=CLASSIFIERS,
 )
