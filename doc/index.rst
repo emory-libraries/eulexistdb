@@ -1,5 +1,5 @@
-EULcore |release|
-=================
+EULexistdb |release|
+====================
 
 EULexistdb is one of several Python_ components from `Emory University
 Libraries`_. The library contains both released and unreleased beta
