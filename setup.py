@@ -30,6 +30,7 @@ setup(
     author='Emory University Libraries',
     author_email='libsysdev-l@listserv.cc.emory.edu',
     url='https://github.com/emory-libraries/eulexistdb',
+    license='Apache License, Version 2.0',
     packages=find_packages(),
     install_requires=[
         'eulxml',
@@ -37,4 +38,5 @@ setup(
     description='Idiomatic access to the eXist-db XML Database',
     long_description=LONG_DESCRIPTION,
     classifiers=CLASSIFIERS,
+    keywords='eXist-db XQuery'
 )
