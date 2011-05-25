@@ -35,7 +35,7 @@ setup(
     install_requires=[
         'eulxml',
     ],
-    description='Idiomatic access to the eXist-db XML Database',
+    description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
     long_description=LONG_DESCRIPTION,
     classifiers=CLASSIFIERS,
     keywords='eXist-db XQuery'
