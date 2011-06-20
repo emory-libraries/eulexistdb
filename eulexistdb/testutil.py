@@ -197,7 +197,7 @@ try:
 
     import xmlrunner
     
-    class ExistDBXmlTestResult(xmlrunner._XMLTestResult, ExistDBTestResult):
+    class ExistDBXmlTestResult(ExistDBTestResult, xmlrunner._XMLTestResult):
         # xml test result logic with our custom startTestRun/stopTestRun
         def __init__(self, **kwargs):
             # sort out kwargs for the respective init methods;
