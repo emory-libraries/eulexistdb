@@ -757,7 +757,7 @@ class TimeoutTransport(xmlrpclib.Transport):
         # __init__ detects which version we need and pastes this method
         # directly into self.make_connection if necessary.
         host, extra_headers, x509 = self.get_host_info(host)
-        return self._http_connection_compat(host)
+        return self._http_connection_compat(host, timeout=self.timeout)
 
 
 class TimeoutSafeTransport(TimeoutTransport):
