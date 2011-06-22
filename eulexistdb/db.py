@@ -686,9 +686,12 @@ class QueryResult(xmlmap.XmlObject):
 
 
 # Custom xmlrpclib Transport classes for configurable timeout
-# Adapted from code found here:
+# Initially adapted from code found here:
 # http://stackoverflow.com/questions/372365/set-timeout-for-xmlrpclib-serverproxy
 
+# NOTE: TimeoutHTTP and TimeoutHTTPS are needed for compatibility with
+# Python 2.6 and earlier (see UGLY HACK ALERT below). They are not used in
+# Python 2.7 and newer.
 class TimeoutHTTP(httplib.HTTP):
     def __init__(self, host='', port=None, strict=None, timeout=None):
          if port == 0:
@@ -703,23 +706,63 @@ class TimeoutHTTPS(httplib.HTTPS):
 
 class TimeoutTransport(xmlrpclib.Transport):
     '''Extend the default :class:`xmlrpclib.Transport` to expose a
-    connection timeout parameter.  Uses :class:`TimeoutHTTP` for http
-    connections.'''
-    _http_connection = TimeoutHTTP
+    connection timeout parameter.'''
+    # UGLY HACK ALERT. Python 2.6 wants make_connection to return something
+    # that looks like a httplib.HTTP. Python 2.7 wants a
+    # httplib.HTTPConnection. We use an ugly hack (commented below) to
+    # figure out which environment we're running in. _http_connection is
+    # used for 2.7-style connections; _http_connection_compat is used for
+    # 2.6-style.
+    _http_connection = httplib.HTTPConnection
+    _http_connection_compat = TimeoutHTTP
+
     def __init__(self, timeout=None, *args, **kwargs):
         if timeout is None:
             timeout = socket._GLOBAL_DEFAULT_TIMEOUT
         xmlrpclib.Transport.__init__(self, *args, **kwargs)
         self.timeout = timeout
 
+        # UGLY HACK ALERT. If we're running on Python 2.6 or earlier,
+        # self.make_connection() needs to return an HTTP; newer versions
+        # expect an HTTPConnection. Our strategy is to guess which is
+        # running, and override self.make_connection for older versions.
+        # That check and override happens here.
+        if self._connection_requires_compat():
+            self.make_connection = self._make_connection_compat
+
+    def _connection_requires_compat(self):
+        # UGLY HACK ALERT. Python 2.7 xmlrpclib caches connection objects in
+        # self._connection (and sets self._connection in __init__). Python
+        # 2.6 and earlier has no such cache. Thus, if self._connection
+        # exists, we're running the newer-style, and if it doesn't then
+        # we're running older-style and thus need compatibility mode.
+        try:
+            self._connection
+            return False
+        except AttributeError:
+            return True
+
     def make_connection(self, host):
+        # This is the make_connection that runs under Python 2.7 and newer.
+        # The code is pulled straight from 2.7 xmlrpclib, except replacing
+        # HTTPConnection with self._http_connection
+        if self._connection and host == self._connection[0]:
+            return self._connection[1]
+        chost, self._extra_headers, x509 = self.get_host_info(host)
+        self._connection = host, self._http_connection(chost, timeout=self.timeout)
+        return self._connection[1]
+
+    def _make_connection_compat(self, host):
+        # This method runs as make_connection under Python 2.6 and older.
+        # __init__ detects which version we need and pastes this method
+        # directly into self.make_connection if necessary.
         host, extra_headers, x509 = self.get_host_info(host)
-        conn = self._http_connection(host, timeout=self.timeout)
-        return conn
+        return self._http_connection_compat(host)
+
 
 class TimeoutSafeTransport(TimeoutTransport):
-    '''Extend class:`TimeoutTransport` but use :class:`TimeoutHTTPS`
-    for the http connections; timeout-enabled equivalent to
-    :class:`xmlrpclib.SafeTransport`.'''
-    _http_connection = TimeoutHTTPS
+    '''Extend class:`TimeoutTransport` but use HTTPS connections;
+    timeout-enabled equivalent to :class:`xmlrpclib.SafeTransport`.'''
+    _http_connection = httplib.HTTPSConnection
+    _http_connection_compat = TimeoutHTTPS
 
