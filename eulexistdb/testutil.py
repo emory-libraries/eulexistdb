@@ -22,7 +22,7 @@ environment setup / teardown for all tests.
 
 To use, configure as test runner in your Django settings::
 
-   TEST_RUNNER = 'eulexistdb.testutil.ExistDBTestSuiteRunner'
+   TEST_RUNNER = 'eulexistdb.testutil.ExistDBTextTestSuiteRunner'
 
 When :mod:`xmlrunner` is available, xmlrunner variants are also
 available.  To use this test runner, configure your test runner as
@@ -131,31 +131,24 @@ class TestCase(DjangoTestCase):
             pass
 
 
-
-class ExistDBTestResult(unittest.TextTestResult):
-    '''Extend :class:`unittest2.TextTestResult` to take advantage of
-    :meth:`~unittest2.TestResult.startTestRun` and
-    :meth:`~unittest2.TestResult.stopTestRun` to do environmental test
-    setup and teardown before and after all tests run.
+class ExistDBTestWrapper(object):
+    '''A `context manager <http://docs.python.org/library/stdtypes.html#context-manager-types>`_
+    that replaces the Django eXist-db configuration with a newly-created
+    temporary test configuration inside the block, returning to the original
+    configuration and deleting the test one when the block exits.
     '''
-    _stored_default_collection = None
 
-    def startTestRun(self):
-        '''Switch Django settings for EXIST access to test
-        configuration, and load any repository fixtures (such as
-        content models or initial objects).'''
-        super(ExistDBTestResult, self).startTestRun()
-        self._use_test_collection()
+    def __init__(self):
+        self.stored_default_collection = None
 
-    def stopTestRun(self):
-        '''Switch Django settings for EXIST access out of test
-        configuration and back into normal settings, and do any 
-        necessary clean up.'''
-        self._restore_root_collection()
-        super(ExistDBTestResult, self).stopTestRun()
+    def __enter__(self):
+        self.use_test_collection()
 
-    def _use_test_collection(self):    
-        self._stored_default_collection = getattr(settings, "EXISTDB_ROOT_COLLECTION", None)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.restore_root_collection()
+
+    def use_test_collection(self):    
+        self.stored_default_collection = getattr(settings, "EXISTDB_ROOT_COLLECTION", None)
 
         if getattr(settings, "EXISTDB_TEST_COLLECTION", None):
             settings.EXISTDB_ROOT_COLLECTION = settings.EXISTDB_TEST_COLLECTION
@@ -168,9 +161,9 @@ class ExistDBTestResult(unittest.TextTestResult):
         # create test collection (don't complain if collection already exists)
         db.createCollection(settings.EXISTDB_ROOT_COLLECTION, True)
 
-    def _restore_root_collection(self):
+    def restore_root_collection(self):
         # if use_test_collection didn't run, don't change anything
-        if self._stored_default_collection is not None:
+        if self.stored_default_collection is not None:
             print "Removing eXist Test Collection: %s" % settings.EXISTDB_ROOT_COLLECTION
             # before restoring existdb non-test root collection, init db connection
             db = ExistDB()
@@ -180,61 +173,66 @@ class ExistDBTestResult(unittest.TextTestResult):
             except ExistDBException, e:
                 print "Error removing collection ", settings.EXISTDB_ROOT_COLLECTION, ': ', e
 
-            print "Restoring eXist Root Collection: %s" % self._stored_default_collection
-            settings.EXISTDB_ROOT_COLLECTION = self._stored_default_collection
+            print "Restoring eXist Root Collection: %s" % self.stored_default_collection
+            settings.EXISTDB_ROOT_COLLECTION = self.stored_default_collection
 
-class ExistDBTestSuiteRunner(DjangoTestSuiteRunner):
+    @classmethod
+    def wrap_test(cls, test):
+        def wrapped_test(result):
+            with cls():
+                return test(result)
+        return wrapped_test
+
+alternate_test_existdb = ExistDBTestWrapper
+
+
+class ExistDBTextTestRunner(unittest.TextTestRunner):
+    '''A :class:`unittest.TextTestRunner` that wraps test execution in a
+    :class:`ExistDBTestWrapper`.'''
+
+    def run(self, test):
+        wrapped_test = alternate_test_existdb.wrap_test(test)
+        return super(ExistDBTextTestRunner, self).run(wrapped_test)
+
+
+class ExistDBTextTestSuiteRunner(DjangoTestSuiteRunner):
     '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to use
     :class:`ExistDBTestResult` as the result class.'''
     
     def run_suite(self, suite, **kwargs):
-        # call the exact same way that django does, with the addition of our resultclass
-        return unittest.TextTestRunner(resultclass=ExistDBTestResult,
-                                       verbosity=self.verbosity, failfast=self.failfast).run(suite)
+        return ExistDBTextTestRunner(verbosity=self.verbosity,
+                                     failfast=self.failfast).run(suite)
+
 
 try:
     # when xmlrunner is available, define xmltest variants
 
     import xmlrunner
-    
-    class ExistDBXmlTestResult(ExistDBTestResult, xmlrunner._XMLTestResult):
-        # xml test result logic with our custom startTestRun/stopTestRun
-        def __init__(self, **kwargs):
-            # sort out kwargs for the respective init methods;
-            # need to call both so everything is set up properly
-            testrunner_args = dict((key, val) for key, val in kwargs.iteritems()
-                                   if key in ['stream', 'descriptions', 'verbosity'])
-            ExistDBTestResult.__init__(self, **testrunner_args)
 
-            xmlargs = dict((key, val) for key, val in kwargs.iteritems() if
-                           key in ['stream', 'descriptions', 'verbosity', 'elapsed_times'])
-            xmlrunner._XMLTestResult.__init__(self, **xmlargs)
-            
     class ExistDBXmlTestRunner(xmlrunner.XMLTestRunner):
-        # XMLTestRunner doesn't currently take a resultclass init option;
-        # extend make_result to override test result class that will be used
-        def _make_result(self):
-            """Create the TestResult object which will be used to store
-            information about the executed tests.
-            """
-            return ExistDBXmlTestResult(stream=self.stream, descriptions=self.descriptions, \
-                                       verbosity=self.verbosity, elapsed_times=self.elapsed_times)
-    
-    class ExistDBXmlTestSuiteRunner(DjangoTestSuiteRunner):
-        '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to use
-        :class:`FedoraTestResult` as the result class.'''
-        # combination of DjangoTestSuiteRunner with xmlrunner django test runner variant
-        
-        def run_suite(self, suite, **kwargs):
-            # pick up settings as expected by django xml test runner
-            settings.DEBUG = False
+        '''A :class:`xmlrunner.XMLTestRunner` that wraps test execution in a
+        :class:`ExistDBTestWrapper`.'''
+
+        def __init__(self):
             verbose = getattr(settings, 'TEST_OUTPUT_VERBOSE', False)
             descriptions = getattr(settings, 'TEST_OUTPUT_DESCRIPTIONS', False)
-            output = getattr(settings, 'TEST_OUTPUT_DIR', '.')
+            output = getattr(settings, 'TEST_OUTPUT_DIR', 'test-results')
 
-            # call roughly the way that xmlrunner does, with our customized test runner
-            return ExistDBXmlTestRunner(verbose=verbose, descriptions=descriptions,
-                                       output=output).run(suite)
+            super_init = super(ExistDBXmlTestRunner, self).__init__
+            super_init(verbose=verbose, descriptions=descriptions, output=output)
+
+        def run(self, test):
+            wrapped_test = alternate_test_existdb.wrap_test(test)
+            return super(ExistDBXmlTestRunner, self).run(wrapped_test)
+
+    class ExistDBXmlTestSuiteRunner(ExistDBTextTestSuiteRunner):
+        '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to
+        setup and teardown a temporary eXist test environment and export
+        test results in XML.'''
+
+        def run_suite(self, suite, **kwargs):
+            return ExistDBXmlTestRunner().run(suite)
+
 
 except ImportError:
     pass
