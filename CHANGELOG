@@ -11,3 +11,9 @@ any necessary information about installation or upgrade notes.
 
 * Split out existdb-specific components from :mod:`eulcore`; now
   depends on :mod:`eulxml`.
+
+0.15.1 - Bugfix Release
+-----------------------
+
+* Support Python 2.7.
+* Rearrange test code to support easier recombination.
