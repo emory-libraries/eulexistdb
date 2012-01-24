@@ -1,4 +1,4 @@
-# eulcore documentation build configuration file
+# eulexistdb documentation build configuration file
 
 import eulexistdb
 
@@ -19,10 +19,10 @@ pygments_style = 'sphinx'
 
 html_style = 'default.css'
 #html_static_path = ['static']
-htmlhelp_basename = 'eulcoredoc'
+htmlhelp_basename = 'eulexistdbdoc'
 
 latex_documents = [
-  ('index', 'eulcore.tex', 'EULexistdb Documentation',
+  ('index', 'eulexistdb.tex', 'EULexistdb Documentation',
    'Emory University Libraries', 'manual'),
 ]
 

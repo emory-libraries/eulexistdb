@@ -439,7 +439,7 @@ class QuerySet(object):
     def using(self, collection):
         '''Specify the eXist collection to be queried.
 
-        If you are using an :class:`eulcore.django.existdb.models.XmlModel` to generate queries against an eXist
+        If you are using an :class:`eulexistdb.models.XmlModel` to generate queries against an eXist
         collection other than the one defined in ``settings.EXISTDB_ROOT_COLLECTION``, you should use this function.
         '''
         qscopy = self._getCopy()
