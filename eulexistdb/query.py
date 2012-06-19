@@ -39,7 +39,7 @@ import re
 from types import BooleanType
 
 from eulxml.xmlmap import load_xmlobject_from_string
-from eulxml.xmlmap.fields import IntegerField, StringField, DateField, NodeField, NodeListField
+from eulxml.xmlmap.fields import IntegerField, StringField, DateTimeField, NodeField, NodeListField
 from eulxml.xmlmap.core import XmlObjectType
 from eulxml.xpath import ast, parse, serialize
 from eulexistdb.exceptions import DoesNotExist, ReturnedMultiple
@@ -308,7 +308,7 @@ class QuerySet(object):
          * ``document_name``, ``collection_name`` - document or collection name
            where xml content is stored in eXist
          * ``hash`` - generate and return a SHA-1 checksum of the root element being queried
-         * ``last_modified`` - :class:`~eulxml.xmlmap.fields.DateField` for the date
+         * ``last_modified`` - :class:`~eulxml.xmlmap.fields.DateTimeField` for the date
            the document the xml element belongs to was last modified
 
         **NOTE:** Be aware that this will result in an XQuery with a constructed return.
@@ -620,7 +620,7 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             # field with the same type as the original model field, but with xpath of the variable
             # name, to match how additional field results are constructed by Xquery object
             if name == 'last_modified':     # special case field
-                field_type = DateField
+                field_type = DateTimeField
             elif name == 'match_count':
                     field_type = IntegerField
             elif fields is None or isinstance(fields, basestring):
