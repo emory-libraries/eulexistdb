@@ -6,6 +6,12 @@ The following is a summary of changes and improvements to
 any necessary information about installation or upgrade notes.
 
 
+0.15.1
+------
+
+* Update to latest released version of :mod:`eulxml` (0.18.0) with
+  backwards-incompatible DateField/DateTimeField change.
+
 0.15.0 - Initial Release
 ------------------------
 
