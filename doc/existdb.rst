@@ -1,5 +1,5 @@
-:mod:`eulcore.existdb` -- Store and retrieve data in an eXist database
-======================================================================
+:mod:`existdb` -- Store and retrieve data in an eXist database
+==============================================================
 
 .. automodule:: eulexistdb
 
@@ -8,7 +8,6 @@
      preferring instead to add docstrings and/or reST docs right here) for
      members that need documentation.
 
-See :mod:`eulcore.django.existdb` for existdb and django integration.
 
 Direct database access
 ----------------------
@@ -99,7 +98,7 @@ Django tie-ins for :mod:`eulexistdb`
       .. attribute:: _managers
 
          A dictionary mapping manager names to
-         :class:`~eulcexistdb.manager.Manager` objects. This
+         :class:`~eulexistdb.manager.Manager` objects. This
          dictionary includes all of the managers defined on the model
          itself, though it does not currently include managers inherited
          from the model's parents.

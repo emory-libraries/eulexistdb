@@ -33,10 +33,11 @@ setup(
     license='Apache License, Version 2.0',
     packages=find_packages(),
     install_requires=[
-        'eulxml',
+        'eulxml>=0.18.0',
     ],
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
     long_description=LONG_DESCRIPTION,
     classifiers=CLASSIFIERS,
     keywords='eXist-db XQuery'
 )
+ 
