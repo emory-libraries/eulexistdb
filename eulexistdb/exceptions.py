@@ -16,6 +16,7 @@
 
 import socket
 import xmlrpclib
+from urllib import unquote_plus
 
 class ExistDBException(Exception):
     """A handy wrapper for all errors returned by the eXist server."""
@@ -47,7 +48,7 @@ class ExistDBException(Exception):
             message = message.replace('[at line 1, column 1]', '')
         else:
             # if all else fails, display the exception as a string
-            message = str(original_exception)
+            message = str(orig_except)
         return message
 
 
