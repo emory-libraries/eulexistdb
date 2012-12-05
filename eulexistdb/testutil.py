@@ -1,5 +1,5 @@
 # file eulexistdb/testutil.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,13 @@ django testrunner does (TEST_OUTPUT_DIR, TEST_OUTPUT_VERBOSE, and
 TEST_OUTPUT_DESCRIPTIONS).
 
 Any :class:`~eulexistdb.db.ExistDB` instances created after the test
-suite starts will automatically connect to the test collection. 
+suite starts will automatically connect to the test collection.
+
+If you are using :mod:`nose` or :mod:`django-nose`, you should use the
+:class:`ExistDBSetUp` plugin to set up the test eXist database.  With
+:mod:`django-nose`, you should add ``eulexistdb.testutil.ExistDBSetUp``
+to **NOSE_PLUGINS** and ``--with-existdbsetup`` to **NOSE_ARGS**
+to ensure the plugin is automatically enabled.
 
 ----
 
@@ -46,6 +52,7 @@ from glob import glob
 import logging
 from os import path
 import re
+import sys
 import unittest2 as unittest
 
 from django.test import TestCase as DjangoTestCase
@@ -62,7 +69,7 @@ class TestCase(DjangoTestCase):
 
     If TestCase instance has an attribute named ``exist_fixtures``, the
     specified fixtures will be loaded to eXist before the tests run.
-    
+
     The ``exist_fixtures`` attribute should be a dictionary with information
     about fixtures to load to eXist. Currently supported options:
 
@@ -116,13 +123,13 @@ class TestCase(DjangoTestCase):
     def _load_file_to_exist(self, file):
         db = ExistDB()
         fname = path.split(file)[-1]
-        exist_path= path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
+        exist_path = path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
         db.load(open(file), exist_path, True)
 
     def _remove_file_from_exist(self, file):
         db = ExistDB()
         fname = path.split(file)[-1]
-        exist_path= path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
+        exist_path = path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
         # tests could remove fixtures, so an exception here is not a problem
         try:
             db.removeDocument(exist_path)
@@ -147,7 +154,7 @@ class ExistDBTestWrapper(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.restore_root_collection()
 
-    def use_test_collection(self):    
+    def use_test_collection(self):
         self.stored_default_collection = getattr(settings, "EXISTDB_ROOT_COLLECTION", None)
 
         if getattr(settings, "EXISTDB_TEST_COLLECTION", None):
@@ -155,7 +162,8 @@ class ExistDBTestWrapper(object):
         else:
             settings.EXISTDB_ROOT_COLLECTION = getattr(settings, "EXISTDB_ROOT_COLLECTION", "/default") + "_test"
 
-        print "Creating eXist Test Collection: %s" % settings.EXISTDB_ROOT_COLLECTION
+        print >> sys.stderr, "Creating eXist Test Collection: %s" % \
+            settings.EXISTDB_ROOT_COLLECTION
         # now that existdb root collection has been set to test collection, init db connection
         db = ExistDB()
         # create test collection (don't complain if collection already exists)
@@ -164,16 +172,18 @@ class ExistDBTestWrapper(object):
     def restore_root_collection(self):
         # if use_test_collection didn't run, don't change anything
         if self.stored_default_collection is not None:
-            print "Removing eXist Test Collection: %s" % settings.EXISTDB_ROOT_COLLECTION
+            print >> sys.stderr, "Removing eXist Test Collection: %s" % settings.EXISTDB_ROOT_COLLECTION
             # before restoring existdb non-test root collection, init db connection
             db = ExistDB()
-            try:            
+            try:
                 # remove test collection
                 db.removeCollection(settings.EXISTDB_ROOT_COLLECTION)
             except ExistDBException, e:
-                print "Error removing collection ", settings.EXISTDB_ROOT_COLLECTION, ': ', e
+                print >> sys.stderr, "Error removing collection %s: %s" \
+                    % (settings.EXISTDB_ROOT_COLLECTION, e)
 
-            print "Restoring eXist Root Collection: %s" % self.stored_default_collection
+            print >> sys.stderr, "Restoring eXist Root Collection: %s" \
+                % self.stored_default_collection
             settings.EXISTDB_ROOT_COLLECTION = self.stored_default_collection
 
     @classmethod
@@ -198,7 +208,7 @@ class ExistDBTextTestRunner(unittest.TextTestRunner):
 class ExistDBTextTestSuiteRunner(DjangoTestSuiteRunner):
     '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to use
     :class:`ExistDBTestResult` as the result class.'''
-    
+
     def run_suite(self, suite, **kwargs):
         return ExistDBTextTestRunner(verbosity=self.verbosity,
                                      failfast=self.failfast).run(suite)
@@ -233,6 +243,27 @@ try:
         def run_suite(self, suite, **kwargs):
             return ExistDBXmlTestRunner().run(suite)
 
+
+except ImportError:
+    pass
+
+
+# when nose is available, define nosetest plugin
+try:
+
+    from nose.plugins.base import Plugin
+
+    class ExistDBSetUp(Plugin):
+
+        def begin(self):
+            self.existwrapper = ExistDBTestWrapper()
+            self.existwrapper.use_test_collection()
+
+        def finalize(self, result):
+            self.existwrapper.restore_root_collection()
+
+        def help(self):
+            return 'Setup and use a test eXist database for tests.'
 
 except ImportError:
     pass

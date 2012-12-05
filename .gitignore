@@ -2,5 +2,7 @@ build
 dist
 *.egg-info
 *.pyc
-test-results
 test/localsettings.py
+coverage.xml
+nosetests.xml
+.coverage

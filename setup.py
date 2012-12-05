@@ -35,9 +35,18 @@ setup(
     install_requires=[
         'eulxml>=0.18.0',
     ],
+    extras_require={
+        'django': ['Django'],
+        'dev': [
+            'sphinx',
+            'nose',
+            'coverage',
+            'Django',
+            'unittest2',  # optional testrunner in testutil
+        ]
+    },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
     long_description=LONG_DESCRIPTION,
     classifiers=CLASSIFIERS,
     keywords='eXist-db XQuery'
 )
- 

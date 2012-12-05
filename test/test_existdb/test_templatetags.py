@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
 # file test_existdb/test_templatetags.py
-# 
+#
 #   Copyright 2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +21,6 @@ from eulexistdb.db import EXISTDB_NAMESPACE
 from eulexistdb.templatetags.existdb import exist_matches
 from eulxml.xmlmap import XmlObject
 
-from testcore import main
 
 class ExistMatchTestCase(unittest.TestCase):
 # test exist_match template tag explicitly
@@ -49,8 +46,3 @@ case files</title>""" % {'ex': EXISTDB_NAMESPACE}
             in format, 'first exist:match tag converted')
         self.assert_('<span class="exist-match">school</span> <span class="exist-match">desegregation</span>'
             in format, 'second and third exist:match tags converted')
-
-
-
-if __name__ == '__main__':
-    main()

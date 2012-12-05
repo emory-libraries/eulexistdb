@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
 # file test_existdb/test_models.py
-# 
+#
 #   Copyright 2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +24,6 @@ from eulexistdb.db import ExistDB
 from eulexistdb.manager import Manager
 from eulexistdb.models import XmlModel
 
-from testcore import main
-
 
 # test model/manager logic
 
@@ -37,10 +33,12 @@ class PartingBase(xmlmap.XmlObject):
     exclamation = xmlmap.StringField('exclamation')
     target = xmlmap.StringField('target')
 
+
 class Parting(XmlModel, PartingBase):
     '''An XmlModel can derive from an XmlObject to incorporate its
     fields.'''
     objects = Manager('/parting')
+
 
 class ModelTest(unittest.TestCase):
     COLLECTION = settings.EXISTDB_TEST_COLLECTION
@@ -69,5 +67,3 @@ class ModelTest(unittest.TestCase):
         self.assertEquals(2, partings.count())
 
 
-if __name__ == '__main__':
-    main()
