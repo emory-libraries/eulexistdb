@@ -9,7 +9,7 @@ pythonic, object-oriented way, with optional `Django
 
 **eulexistdb.db** provides access to an eXist-db instance through
 eXist's `XML-RPC API
-<http://exist.sourceforge.net/devguide_xmlrpc.html>`_.  
+<http://exist.sourceforge.net/devguide_xmlrpc.html>`_.
 
 **eulexistdb.query** provides a **QuerySet** class modeled after
 `Django QuerySet
@@ -33,10 +33,10 @@ highlight full-text search matches.
 Dependencies
 ------------
 
-**eulexistdb** currently depends on 
+**eulexistdb** currently depends on
 `eulxml <https://github.com/emory-libraries/eulxml>`_.
 
-**eulexistdb** can be used without 
+**eulexistdb** can be used without
 `Django <https://www.djangoproject.com/>`_, but additional
 functionality is available when used with Django.
 
@@ -61,3 +61,20 @@ Development History
 For instructions on how to see and interact with the full development
 history of **eulexistdb**, see
 `eulcore-history <https://github.com/emory-libraries/eulcore-history>`_.
+
+Developer notes
+---------------
+
+To install dependencies for your local check out of the code, run ``pip install``
+in the ``eulexistdb`` directory (the use of `virtualenv`_ is recommended)::
+
+    pip install -e .
+
+.. _virtualenv: http://www.virtualenv.org/en/latest/
+
+If you want to run unit tests or build sphinx documentation, you will also
+need to install development dependencies::
+
+    pip install eulexistdb[dev]
+
+
