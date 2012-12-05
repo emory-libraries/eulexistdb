@@ -85,7 +85,7 @@ To run all unit tests::
 
 
     nosetests test/ # for normal development
-    nosetests test/ --with-coverage --cover-package=eulxml --cover-xml --with-xunit   # for continuous integration
+    nosetests test/ --with-coverage --cover-package=eulexistdb --cover-xml --with-xunit   # for continuous integration
 
 To run unit tests for a specific module, use syntax like this::
 
