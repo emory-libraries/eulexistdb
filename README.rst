@@ -75,7 +75,7 @@ in the ``eulexistdb`` directory (the use of `virtualenv`_ is recommended)::
 If you want to run unit tests or build sphinx documentation, you will also
 need to install development dependencies::
 
-    pip install eulexistdb[dev]
+    pip install -e . "eulexistdb[dev]"
 
 Running the unit tests requires an eXist-DB database instance.  Before running tests, you will
 need to copy ``test/localsettings.py.dist`` to ``test/localsettings.py`` and edit the
