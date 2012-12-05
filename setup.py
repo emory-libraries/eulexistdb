@@ -39,10 +39,10 @@ setup(
         'django': ['Django'],
         'dev': [
             'sphinx',
+            'nose',
             'coverage',
             'Django',
-            'unittest2',
-            'unittest-xml-reporting>1.0.3',
+            'unittest2',  # optional testrunner in testutil
         ]
     },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',

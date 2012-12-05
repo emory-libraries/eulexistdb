@@ -77,4 +77,24 @@ need to install development dependencies::
 
     pip install eulexistdb[dev]
 
+Running the unit tests requires an eXist-DB database instance.  Before running tests, you will
+need to copy ``test/localsettings.py.dist`` to ``test/localsettings.py`` and edit the
+configuration for your test instance of eXist.
+
+To run all unit tests::
+
+
+    nosetests test/ # for normal development
+    nosetests test/ --with-coverage --cover-package=eulxml --cover-xml --with-xunit   # for continuous integration
+
+To run unit tests for a specific module, use syntax like this::
+
+    nosetests test/test_existdb/test_db.py
+
+
+To generate sphinx documentation::
+
+    cd doc
+    make html
+
 

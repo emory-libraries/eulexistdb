@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
 # file test_existdb/test_query.py
-# 
+#
 #   Copyright 2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +25,7 @@ from eulexistdb.query import QuerySet
 from eulexistdb.query import Xquery
 from test_existdb.test_db import EXISTDB_SERVER_URL
 from test_existdb.test_db import EXISTDB_TEST_COLLECTION
-from testcore import main
+
 
 class QuerySubModel(xmlmap.XmlObject):
     subname = xmlmap.StringField("subname")
@@ -87,7 +85,7 @@ def load_fixtures(db):
     db.load(FIXTURE_THREE, COLLECTION + '/f3.xml', True)
     db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml', True)
 
-class ExistQueryTest(unittest.TestCase):    
+class ExistQueryTest(unittest.TestCase):
 
     def setUp(self):
         self.db = ExistDB(server_url=EXISTDB_SERVER_URL)
@@ -101,7 +99,7 @@ class ExistQueryTest(unittest.TestCase):
         load_fixtures(self.db)
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "queryset count returns number of fixtures")
 
-    def test_getitem(self):                
+    def test_getitem(self):
         qs = self.qs.order_by('id')     # adding sort order to test reliably
         self.assertEqual("abc", qs[0].id)
         self.assertEqual("def", qs[1].id)
@@ -118,7 +116,7 @@ class ExistQueryTest(unittest.TestCase):
     def test_getslice(self):
         slice = self.qs.order_by('id')[0:2]
         self.assert_(isinstance(slice, QuerySet))
-        self.assert_(isinstance(slice[0], QueryTestModel))        
+        self.assert_(isinstance(slice[0], QueryTestModel))
         self.assertEqual(2, slice.count())
         self.assertEqual(2, len(slice))
         self.assertEqual('abc', slice[0].id)
@@ -241,8 +239,8 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_(isinstance(result, QueryTestModel), "get() with contains returns single result")
         self.assertEqual(result.name, "one", "result returned by get() has correct data")
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
-    
-    def test_filter_get(self):        
+
+    def test_filter_get(self):
         result = self.qs.filter(contains="one").filter(name="two").get()
         self.assert_(isinstance(result, QueryTestModel))
         self.assertEqual("two", result.name, "filtered get() returns correct data")
@@ -284,10 +282,10 @@ class ExistQueryTest(unittest.TestCase):
         fqs = self.qs.order_by('-~description')
         self.assert_(fqs[3].description.startswith('third'))
 
-    def test_only(self):        
+    def test_only(self):
         self.qs.only('name')
         self.assert_('element name {' not in self.qs.query.getQuery(), "main queryset unchanged by only()")
-        
+
         fqs = self.qs.filter(id='one').only('name', 'id', 'sub', 'or_field')
         self.assert_(isinstance(fqs[0], QueryTestModel))	# actually a Partial type derived from this
         # attributes that should be present
@@ -325,7 +323,7 @@ class ExistQueryTest(unittest.TestCase):
             # each return object should have a 40-character SHA-1 hash checksum
             self.assertEqual(40, len(result.hash),
                              'xquery result should have 40-character checksum, got %s' % result.hash)
-                
+
     def test_document_name(self):
         fqs = self.qs.filter(id='one').only('document_name')
         # document_name attribute should be present
@@ -359,7 +357,7 @@ class ExistQueryTest(unittest.TestCase):
             i += 1
         self.assertEqual(1, i)
 
-    def test_also(self):        
+    def test_also(self):
         class SubqueryTestModel(xmlmap.XmlObject):
             name = xmlmap.StringField('.')
             parent_id = xmlmap.StringField('parent::root/@id')
@@ -373,12 +371,12 @@ class ExistQueryTest(unittest.TestCase):
     def test_also_subfield(self):
         class SubqueryTestModel(xmlmap.XmlObject):
             subname = xmlmap.StringField('subname')
-            parent = xmlmap.NodeField('parent::root', QueryTestModel)      
+            parent = xmlmap.NodeField('parent::root', QueryTestModel)
 
         qs = QuerySet(using=self.db, collection=COLLECTION, model=SubqueryTestModel, xpath='//sub')
         name = qs.also('parent__id', 'parent__wnn').get(subname__exact='la')
         self.assertEqual('la', name.subname)
-        self.assertEqual('one', name.parent.id)        
+        self.assertEqual('one', name.parent.id)
         self.assertEqual(42, name.parent.wnn)
 
     def test_also_raw(self):
@@ -388,7 +386,7 @@ class ExistQueryTest(unittest.TestCase):
         qs = QuerySet(using=self.db, collection=COLLECTION, model=SubqueryTestModel, xpath='/root')
         qs = qs.filter(id='abc').also_raw(myid='string(%(xq_var)s//name/ancestor::root/@id)')
         self.assertEqual('abc', qs[0].myid)
-        # filtered version of the queryset with raw 
+        # filtered version of the queryset with raw
         obj = qs.filter(name='two').get()
         self.assertEqual('abc', obj.myid)
 
@@ -537,7 +535,7 @@ class ExistQueryTest__FullText(unittest.TestCase):
         fqs = self.qs.filter(highlight='supercalifragilistic')
         self.assertEqual(4, fqs.count(),
                          "highlight filter returns all documents even though search term is not present")
-            
+
         fqs = self.qs.filter(highlight='one').order_by('id')
         self.assert_('<exist:match' in fqs[0].serialize())
 
@@ -657,7 +655,7 @@ class XqueryTest(unittest.TestCase):
         xq.add_filter('.', 'contains', 'dog', mode='OR')
         xq.add_filter('.', 'startswith', 'S', mode='OR')
         self.assertEquals('/el[contains(., "dog") or starts-with(., "S")]', xq.getQuery())
-   
+
     def test_return_only(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
@@ -723,7 +721,7 @@ class XqueryTest(unittest.TestCase):
         # subsequence with FLWR query
         xq.return_only({'name':'name'})
         self.assert_('subsequence(for $n in' in xq.getQuery())
-        
+
         # additive limits
         xq = Xquery(xpath='/el')
         xq.set_limits(low=2, high=10)
@@ -790,9 +788,5 @@ class XqueryTest(unittest.TestCase):
         # xpath-only xquery should have namespace declaration
         self.assert_(ns_declaration in xq.getQuery())
         # full FLOWR xquery should also have declaration
-        xq.return_only({'id':'@id'})
+        xq.return_only({'id': '@id'})
         self.assert_(ns_declaration in xq.getQuery())
-
-
-if __name__ == '__main__':
-    main()

@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
 # file test_existdb/test_db.py
-# 
+#
 #   Copyright 2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,9 +18,10 @@ import unittest
 from urlparse import urlsplit, urlunsplit
 
 from eulexistdb import db
-from testcore import main
 
-from testsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_URL_DBA, EXISTDB_TEST_COLLECTION
+from testsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_URL_DBA, \
+    EXISTDB_TEST_COLLECTION
+
 
 class ExistDBTest(unittest.TestCase):
     COLLECTION = EXISTDB_TEST_COLLECTION
@@ -32,7 +31,7 @@ class ExistDBTest(unittest.TestCase):
         # separate existdb instance with dba credentials
         self.db_admin = db.ExistDB(server_url=EXISTDB_SERVER_URL_DBA)
         self.db.createCollection(self.COLLECTION, True)
-	
+
         self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml', True)
 
         xml = '<root><element name="one">One</element><element name="two">Two</element><element name="two">Three</element></root>'
@@ -75,7 +74,7 @@ class ExistDBTest(unittest.TestCase):
         if not hasattr(settings, 'EXISTDB_SERVER_PASSWORD'):
             print "DEBUG: setting exist password on settings"
             settings.EXISTDB_SERVER_PASSWORD = 'pass'
-            
+
         user = settings.EXISTDB_SERVER_USER
         pwd = settings.EXISTDB_SERVER_PASSWORD
         scheme, sep, host = settings.EXISTDB_SERVER_URL.partition('//')
@@ -83,7 +82,7 @@ class ExistDBTest(unittest.TestCase):
         # with username & password
         self.assertEqual(scheme + sep + user + ':' + pwd + '@' + host,
                          self.db._serverurl_from_djangoconf())
-        
+
         # username but no password
         settings.EXISTDB_SERVER_PASSWORD = None
         self.assertEqual(scheme + sep + user + '@' + host, self.db._serverurl_from_djangoconf())
@@ -92,7 +91,7 @@ class ExistDBTest(unittest.TestCase):
         settings.EXISTDB_SERVER_USER = None
         self.assertEqual(settings.EXISTDB_SERVER_URL, self.db._serverurl_from_djangoconf())
 
-    
+
 
     def test_getDocument(self):
         """Test retrieving a full document from eXist"""
@@ -252,7 +251,7 @@ class ExistDBTest(unittest.TestCase):
 
     def test_executeQuery(self):
         """Test executeQuery & dependent functions (querySummary, getHits, retrieve)"""
-        xqry = 'for $x in collection("/db%s")/root/element where $x/@name="two" return $x' % (self.COLLECTION, )        
+        xqry = 'for $x in collection("/db%s")/root/element where $x/@name="two" return $x' % (self.COLLECTION, )
         result_id = self.db.executeQuery(xqry)
         self.assert_(isinstance(result_id, int), "executeQuery returns integer result id")
 
@@ -285,14 +284,14 @@ class ExistDBTest(unittest.TestCase):
         summary = self.db.querySummary(result_id)
         self.assertEqual(0, summary['hits'], "querySummary returns hit count of 0")
         self.assertEqual([], summary['documents'], "querySummary document list is empty")
-        
-        # getHits 
+
+        # getHits
         hits = self.db.getHits(result_id)
         self.assertEqual(0, hits, "getHits returns correct count of 0 for query with no match")
 
         # retrieve non-existent result
         self.assertRaises(db.ExistDBException, self.db.retrieve, result_id, 0)
-        
+
 
     def test_executeQuery_bad_xquery(self):
         """Check that an invalid xquery raises an exception"""
@@ -370,7 +369,7 @@ class ExistDBTest(unittest.TestCase):
     def test_removeCollectionIndex(self):
         """Test removing a collection index config file from the system config collection."""
         self.db.loadCollectionIndex(self.COLLECTION, "<collection/>")
-        
+
         self.assertTrue(self.db.removeCollectionIndex(self.COLLECTION))
         # collection config file should be gone         # FIXME: better way to test missing file?
         # NOTE: apparently getDocument behaves differently when neither doc nor collection exist (?)
@@ -412,7 +411,7 @@ class ExistDBTest(unittest.TestCase):
         # guest account - permission denied
         self.assertFalse(self.db.reindexCollection('/db' + self.COLLECTION),
             "reindex should fail - guest account does not have permission to reindex collection")
-        # dba account 
+        # dba account
         self.assertTrue(self.db_admin.reindexCollection('/db' + self.COLLECTION),
             "reindex with exist dba user should succeed")
         # full or short version of collection name
@@ -434,6 +433,3 @@ class ExistDBTest(unittest.TestCase):
         self.assertEqual(492, perms.permissions)
 
     # can't figure out how to test timeout init param...
-
-if __name__ == '__main__':
-    main()

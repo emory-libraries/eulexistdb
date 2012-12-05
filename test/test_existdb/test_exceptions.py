@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
 # file test_existdb/test_exceptions.py
-# 
+#
 #   Copyright 2012 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,12 +19,12 @@ import unittest
 import xmlrpclib
 
 from eulexistdb.exceptions import ExistDBException
-from testcore import main
+
 
 class ExistDbExceptionTest(unittest.TestCase):
 
     def test_message(self):
-        # generic exception 
+        # generic exception
 
         msg_text = 'this is a basic exception message'
         err = ExistDBException(Exception(msg_text))
@@ -51,6 +49,3 @@ class ExistDbExceptionTest(unittest.TestCase):
         # no test for exist-speficic errors (need an exaample error)
 
 
-
-if __name__ == '__main__':
-    main()
