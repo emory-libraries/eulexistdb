@@ -5,6 +5,14 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.16
+----
+
+* Development requirements can now be installed as an optional requirement
+  of the eulexistdb package (``pip install "eulexistdb[dev]"``).
+* Unit tests have been updated to use :mod:`nose`
+* Provides a nose plugin to set up and tear down a eXist database collection
+  for tests, as an alternative to the custom test runners.
 
 0.15.2
 ------
