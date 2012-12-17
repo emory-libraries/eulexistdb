@@ -77,6 +77,7 @@ FIXTURE_FOUR = '''
 '''
 NUM_FIXTURES = 4
 
+
 def load_fixtures(db):
     db.createCollection(COLLECTION, True)
 
@@ -84,6 +85,7 @@ def load_fixtures(db):
     db.load(FIXTURE_TWO, COLLECTION + '/f2.xml', True)
     db.load(FIXTURE_THREE, COLLECTION + '/f3.xml', True)
     db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml', True)
+
 
 class ExistQueryTest(unittest.TestCase):
 
@@ -191,24 +193,24 @@ class ExistQueryTest(unittest.TestCase):
                          "should get 1 match for filter on sub_subname = 'la' (got %s)" % fqs.count())
 
     def test_filter_in(self):
-        fqs = self.qs.filter(id__in=['abc','xyz', 'qrs'])
+        fqs = self.qs.filter(id__in=['abc', 'xyz', 'qrs'])
         self.assertEqual(2, fqs.count(),
             "should get 2 matches for filter on id in list (got %s)" % fqs.count())
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
 
-        fqs = self.qs.filter(document_name__in=['f1.xml','f2.xml'])
+        fqs = self.qs.filter(document_name__in=['f1.xml', 'f2.xml'])
         self.assertEqual(2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
 
         # filtering on a special field - should still be able to return/access it via only
-        fqs = self.qs.filter(document_name__in=['f1.xml','f2.xml']).only('id',
+        fqs = self.qs.filter(document_name__in=['f1.xml', 'f2.xml']).only('id',
             'document_name').order_by('document_name')
         self.assertEqual(2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
         self.assertEqual('f1.xml', fqs[0].document_name)
 
-        fqs = self.qs.filter(document_name__in=['f1.xml','f2.xml']).also('id',
+        fqs = self.qs.filter(document_name__in=['f1.xml',  'f2.xml']).also('id',
             'document_name').order_by('document_name')
         self.assertEqual(2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
@@ -222,8 +224,19 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_('abc' in ids, 'id "abc" in list of ids when OR filter includes id="abc"')
         self.assert_('def' in ids, 'id "def" in list of ids when OR filter includes name="four')
 
+    def test_filter_document_path(self):
+        # get full test path to first document
+        item = self.qs.filter(name='one').only('document_name', 'collection_name').get()
+        path = '%s/%s' % (item.collection_name, item.document_name)
+
+        #
+        fqs = self.qs.filter(document_path=path, name='one')
+        self.assertEqual(1, fqs.count())
+        fqs = self.qs.filter(document_path=path, name='two')
+        self.assertEqual(0, fqs.count())
+
     def test_get(self):
-        result  = self.qs.get(contains="two")
+        result = self.qs.get(contains="two")
         self.assert_(isinstance(result, QueryTestModel), "get() with contains returns single result")
         self.assertEqual(result.name, "two", "result returned by get() has correct data")
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
@@ -235,7 +248,7 @@ class ExistQueryTest(unittest.TestCase):
         self.assertRaises(DoesNotExist, self.qs.get, contains="fifty-four")
 
     def test_get_byname(self):
-        result  = self.qs.get(name="one")
+        result = self.qs.get(name="one")
         self.assert_(isinstance(result, QueryTestModel), "get() with contains returns single result")
         self.assertEqual(result.name, "one", "result returned by get() has correct data")
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
@@ -287,7 +300,7 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_('element name {' not in self.qs.query.getQuery(), "main queryset unchanged by only()")
 
         fqs = self.qs.filter(id='one').only('name', 'id', 'sub', 'or_field')
-        self.assert_(isinstance(fqs[0], QueryTestModel))	# actually a Partial type derived from this
+        self.assert_(isinstance(fqs[0], QueryTestModel))  # actually a Partial type derived from this
         # attributes that should be present
         self.assertNotEqual(fqs[0].id, None)
         self.assertNotEqual(fqs[0].sub, None)
@@ -430,7 +443,6 @@ class ExistQueryTest(unittest.TestCase):
         # 4 names in test fixtures - should come back as a list of those 4 names
         self.assertEqual(4, len(obj.name))
 
-
     def test_getDocument(self):
         obj = self.qs.getDocument("f1.xml")
         self.assert_(isinstance(obj, QueryTestModel),
@@ -440,7 +452,7 @@ class ExistQueryTest(unittest.TestCase):
     def test_distinct(self):
         qs = QuerySet(using=self.db, collection=COLLECTION, xpath='//name')
         vals = qs.distinct()
-        self.assert_('one'  in vals)
+        self.assert_('one' in vals)
         self.assert_('two' in vals)
         self.assert_('three' in vals)
         self.assert_('four' in vals)
@@ -450,6 +462,7 @@ class ExistQueryTest(unittest.TestCase):
         # filter on a field with a namespace
         fqs = self.qs.filter(nsfield='namespaced').all()
         self.assertEqual('namespaced', fqs[0].nsfield)
+
 
 class ExistQueryTest__FullText(unittest.TestCase):
     # when full-text indexing is enabled, eXist must index files when they are loaded to the db
@@ -549,7 +562,6 @@ class ExistQueryTest__FullText(unittest.TestCase):
         self.assertEqual('new-collection', fqs.query.collection)
 
 
-
 class XqueryTest(unittest.TestCase):
 
     def test_defaults(self):
@@ -585,6 +597,13 @@ class XqueryTest(unittest.TestCase):
         # set to None
         xq.set_collection(None)
         self.assertEquals('/node()', xq.getQuery())
+
+    def test_document(self):
+        xq = Xquery(xpath='/el', document="/db/coll/file.xml")
+        self.assertEquals('doc("/db/coll/file.xml")/el', xq.getQuery())
+        # document takes precedence over collection
+        xq.set_collection('coll')  # should be ignored
+        self.assertEquals('doc("/db/coll/file.xml")/el', xq.getQuery())
 
     def test_sort(self):
         xq = Xquery(collection="mycoll")
@@ -659,7 +678,8 @@ class XqueryTest(unittest.TestCase):
     def test_return_only(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
-        xq.return_only({'myid':'@id', 'some_name':'name', 'first_letter':'substring(@n,1,1)'})
+        xq.return_only({'myid': '@id', 'some_name': 'name',
+            'first_letter': 'substring(@n,1,1)'})
         xq_return = xq._constructReturn()
         self.assert_('return <el>' in xq_return)
         self.assert_('<field>{$n/@id}</field>' in xq_return)
@@ -668,34 +688,34 @@ class XqueryTest(unittest.TestCase):
         self.assert_('</el>' in xq_return)
 
         xq = Xquery(xpath='/some/el/notroot')
-        xq.return_only({'id':'@id'})
+        xq.return_only({'id': '@id'})
         self.assert_('return <notroot>' in xq._constructReturn())
 
     def test_return_only__fulltext_score(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
-        xq.return_only({'fulltext_score':''})
+        xq.return_only({'fulltext_score': ''})
         self.assert_('let $fulltext_score := ft:score($n)' in xq.getQuery())
         self.assert_('<fulltext_score>{$fulltext_score}</fulltext_score>' in xq._constructReturn())
 
     def test_return_also(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
-        xq.return_also({'myid':'@id', 'some_name':'name'})
+        xq.return_also({'myid': '@id', 'some_name': 'name'})
         self.assert_('{$n}' in xq._constructReturn())
         self.assert_('<field>{$n/@id}</field>' in xq._constructReturn())
 
     def test_return_also__fulltext_score(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
-        xq.return_also({'fulltext_score':''})
+        xq.return_also({'fulltext_score': ''})
         self.assert_('let $fulltext_score := ft:score($n)' in xq.getQuery())
         self.assert_('<fulltext_score>{$fulltext_score}</fulltext_score>' in xq._constructReturn())
 
     def test_return_also__highlight(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
-        xq.return_also({'fulltext_score':''})
+        xq.return_also({'fulltext_score': ''})
         xq.add_filter('.', 'highlight', 'dog star')
         self.assert_('(/el[ft:query(., "dog star")]|/el)' in xq.getQuery())
 
@@ -703,13 +723,13 @@ class XqueryTest(unittest.TestCase):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
         xq._raw_prefix = 'r_'
-        xq.return_also({'myid':'count(util:expand(%(xq_var)s/@id))'}, raw=True)
+        xq.return_also({'myid': 'count(util:expand(%(xq_var)s/@id))'}, raw=True)
         self.assert_('<r_myid>{count(util:expand($n/@id))}</r_myid>' in xq._constructReturn())
 
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
         xq._raw_prefix = 'r_'
-        xq.return_also({'myid':'@id'}, raw=True)
+        xq.return_also({'myid': '@id'}, raw=True)
         self.assert_('<r_myid>{@id}</r_myid>' in xq._constructReturn())
 
     def test_set_limits(self):
@@ -719,7 +739,7 @@ class XqueryTest(unittest.TestCase):
         xq.set_limits(low=0, high=4)
         self.assertEqual('subsequence(/el, 1, 4)', xq.getQuery())
         # subsequence with FLWR query
-        xq.return_only({'name':'name'})
+        xq.return_only({'name': 'name'})
         self.assert_('subsequence(for $n in' in xq.getQuery())
 
         # additive limits

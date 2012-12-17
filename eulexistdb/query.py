@@ -1,5 +1,5 @@
 # file eulexistdb/query.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,10 +86,10 @@ class QuerySet(object):
 
     # pre-compile regular expression for pulling sort flags off beginning of sort field
     _sort_field_re = re.compile(r'^(?P<flags>[~-]*)(?P<field>.*)$')
-    
+
     def __init__(self, model=None, xpath=None, using=None, collection=None,
                 xquery=None, fulltext_options={}):
-        self.model = model     
+        self.model = model
         self._db = using
 
         # remove leading / from collection name if present
@@ -114,7 +114,7 @@ class QuerySet(object):
         self._highlight_matches = False
 
     def __del__(self):
-        # release any queries in eXist 
+        # release any queries in eXist
         if self._result_id is not None:
             self._release_query_result()
 
@@ -137,10 +137,10 @@ class QuerySet(object):
         # return the slice length
         if self._stop is not None:
             return self._stop - self._start
-        
+
         if self._count is None:
             self._count = self._db.getHits(self.result_id)
-            
+
         return self._count - self._start
 
     def queryTime(self):
@@ -154,12 +154,12 @@ class QuerySet(object):
         """Get a clone of the current QuerySet for modification via
         :meth:`filter`, :meth:`order`, etc."""
         # copy current queryset - for modification via filter/order/etc
-        copy = QuerySet(model=self.model, xquery=self.query.getCopy(), using=self._db)        
+        copy = QuerySet(model=self.model, xquery=self.query.getCopy(), using=self._db)
         copy.partial_fields = self.partial_fields.copy()
         copy.additional_fields = self.additional_fields.copy()
         copy._highlight_matches = self._highlight_matches
         # reset result cache, if any, because any filters will change it
-        copy._result_cache = {}   
+        copy._result_cache = {}
         return copy
 
     def filter(self, combine='AND', **kwargs):
@@ -184,6 +184,8 @@ class QuerySet(object):
            content will be returned even if it does not include the search terms.
            Requires a properly configured lucene index.
          * ``in`` - field or object is present in a list of values
+         * ``document_path`` - restrict the query to a singled document;
+           this must be a document path as returned by eXist, with full db path
 
         Field may be in the format of field__subfield when field is an NodeField
         or NodeListField and subfield is a configured element on that object.
@@ -203,7 +205,7 @@ class QuerySet(object):
         #   search (full-text search with full-text indexing - like contains but faster)
 
         qscopy = self._getCopy()
-        
+
         for arg, value in kwargs.iteritems():
             fields, rest = _split_fielddef(arg, self.model)
             if rest and rest not in qscopy.query.available_filters:
@@ -218,19 +220,23 @@ class QuerySet(object):
                     # assume the entire arg is actually one big xpath.
                     xpath = arg
                     lookuptype = 'exact'
+
             else:
                 # valid filter, or no filter at all
                 xpath = _join_field_xpath(fields) or '.'
                 lookuptype = rest or 'exact'
 
+            if lookuptype == 'document_path':
+                qscopy.query.set_document(value)
+
             # highlighting is only an xquery filter when passed as a string
-            if lookuptype != 'highlight' or \
+            elif lookuptype != 'highlight' or \
                 lookuptype == 'highlight' and not isinstance(value, BooleanType):
                 qscopy.query.add_filter(xpath, lookuptype, value, combine)
 
             # enable highlighting when a full-text query is used
             if lookuptype == 'fulltext_terms':
-                # boolean highlight setting overrides default 
+                # boolean highlight setting overrides default
                 if 'highlight' in kwargs and isinstance(kwargs['highlight'], BooleanType):
                     qscopy._highlight_matches = kwargs['highlight']
                 else:
@@ -266,7 +272,7 @@ class QuerySet(object):
                       sort.  The flags '-' and '~' may be combined in any order.
 
         Example usage::
-        
+
             queryset.filter(fulltext_terms='foo').order_by('-fulltext_score')
             queryset.order_by('~name')
 
@@ -281,12 +287,12 @@ class QuerySet(object):
         sort_flags = field_parts['flags']
 
         # convert sort flags into options for xquery sort method
-        sort_opts = {}      
+        sort_opts = {}
         if '-' in sort_flags:
             sort_opts['ascending'] = False
         if '~' in sort_flags:
             sort_opts['case_insensitive'] = True
-            
+
         # TODO: allow multiple fields
         xpath = _simple_fielddef_to_xpath(field, self.model) or field
         qscopy = self._getCopy()
@@ -294,7 +300,7 @@ class QuerySet(object):
         return qscopy
 
     def only(self, *fields):
-        """Limit results to include only specified fields.        
+        """Limit results to include only specified fields.
 
         :param fields: names of fields in the QuerySet's :attr:`model`
 
@@ -378,9 +384,9 @@ class QuerySet(object):
         Can be combined with :meth:`also`.
 
         Example usage::
-        
+
             qs.also_raw(field_matches='count(util:expand(%(xq_var)s//field)//exist:match)')
-            
+
         '''
         return self._raw_field(also=True, **fields)
 
@@ -416,7 +422,7 @@ class QuerySet(object):
 
     def distinct(self):
         """Return distinct results.
-        
+
         This method returns an updated copy of the QuerySet: It does not
         modify the original. When results are returned from the updated
         copy, they will contain only distinct results.
@@ -430,7 +436,7 @@ class QuerySet(object):
         """Return all results.
 
         This method returns an identical copy of the QuerySet.
-        
+
         """
         return self._getCopy()
 
@@ -451,7 +457,7 @@ class QuerySet(object):
 
         This modifies the current query set, removing all filters, and
         resetting cached results."""
-        self.query.clear_filters()        
+        self.query.clear_filters()
         # if a query has been made to eXist - release result & reset result id
         if self._result_id is not None:
             self._release_query_result()
@@ -487,8 +493,8 @@ class QuerySet(object):
     def __getitem__(self, k):
         """Return a single result or slice of results from the query."""
         if not isinstance(k, (slice, int, long)):
-           raise TypeError
-        
+            raise TypeError
+
         if isinstance(k, slice):
             qs = self._getCopy()
             # if start was specified, use it; otherwise retain current start
@@ -499,7 +505,7 @@ class QuerySet(object):
 
             # because the slicing is done within the result cache,
             # share the same cache across subsets of this queryset
-            qs._result_cache = self._result_cache # FIXME: would it be better/safer to use a copy?
+            qs._result_cache = self._result_cache  # FIXME: would it be better/safer to use a copy?
 
             return qs
 
@@ -579,7 +585,6 @@ class QuerySet(object):
         # getDocument returns unicode instead of string-- need to decode before handing off to parseString
         return load_xmlobject_from_string(data.encode('utf_8'), self.model)
 
-    
 
 def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             override_xpaths={}):
@@ -589,33 +594,33 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
 
     :param baseclass: the baseclass to be extended; expected to be an instance of XmlObject
     :param override_fields: dictionary of field, list of nodefields - in the format of partial_fields
-    	or additional_fields, as genreated by QuerySet.only or QuerySet.also
+        or additional_fields, as genreated by QuerySet.only or QuerySet.also
     :param xpath_prefix: optional, should only be used when recursing.  By default, the xpath
-    	for a constructed node is assumed to be the same as the field name; for sub-object fields,
+        for a constructed node is assumed to be the same as the field name; for sub-object fields,
         this parameter is used to pass the prefix in for creating the sub-object class.
     :param override_xpaths: dictionary of field name and xpaths to use, based on
-        the constructed xml being returned; most likely generated by 
+        the constructed xml being returned; most likely generated by
         :meth:`Xquery.get_return_xpaths`.
     """
 
     # NOTE: this class is tested indirectly via the QuerySet also and only functions,
-    # but it is *not* tested directly.    
-    
+    # but it is *not* tested directly.
+
     classname = "Partial%s" % baseclass.__name__
     class_fields = {}
 
-    # collect names of subobjects, with information needed to create additional return classes 
+    # collect names of subobjects, with information needed to create additional return classes
     subclasses = {}
     subclass_fields = {}
     for name, fields in override_fields.iteritems():
         # nested object fields are indicated by basename__subname
         if '__' in name:
             basename, remainder = name.split('__', 1)
-            subclasses[basename] = fields[0]	# list of field types - first type is basename
+            subclasses[basename] = fields[0]    # list of field types - first type is basename
             if basename not in subclass_fields:
                 subclass_fields[basename] = {}
             subclass_fields[basename][remainder] = fields[1:]
-            
+
         else:
             # field with the same type as the original model field, but with xpath of the variable
             # name, to match how additional field results are constructed by Xquery object
@@ -624,7 +629,7 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             elif name == 'match_count':
                     field_type = IntegerField
             elif fields is None or isinstance(fields, basestring):
-                field_type = StringField	# handle special cases like fulltext score
+                field_type = StringField    # handle special cases like fulltext score
             else:
                 field_type = type(fields[-1])
 
@@ -634,7 +639,7 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             if xpath_prefix:
                 xpath = "__".join((xpath_prefix, name))
                 fieldname = "__".join((xpath_prefix, name))
-                
+
             # if an override xpath is specified for this field, use that
             if fieldname in override_xpaths:
                 xpath = override_xpaths[fieldname]
@@ -656,17 +661,20 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
         subclass = _create_return_class(nodefield._get_node_class(), subclass_fields[subclass_name],
                                         xpath_prefix=prefix, override_xpaths=override_xpaths)
         # field type (e.g. NodeField or NodeListField), to be instanced as new subclass
-        class_fields[subclass_name] = type(nodefield)(".", subclass) 
-    
+        class_fields[subclass_name] = type(nodefield)(".", subclass)
+
     # create the new class and set it as the return type to be initialized
     return XmlObjectType(classname, (baseclass,), class_fields)
+
 
 def escape_string(s):
     'Escape a string as a literal value for use in an Xquery expression.'
     return s.replace('"', '""').replace('&', '&amp;')
 
+
 def _quote_as_string_literal(s):
-    return '"' + escape_string(s)  + '"'
+    return '"' + escape_string(s) + '"'
+
 
 class Xquery(object):
     """
@@ -685,19 +693,20 @@ class Xquery(object):
     xq_var = '$n'           # xquery variable to use when constructing flowr query
     ft_option_xqvar = '$ft_options'  # xquery variable for fulltext options, if needed
     available_filters = ['contains', 'startswith', 'exact', 'fulltext_terms',
-        'highlight', 'in']
-    special_fields =  ['fulltext_score', 'last_modified', 'hash',
+        'highlight', 'in', 'document_path']
+    special_fields = ['fulltext_score', 'last_modified', 'hash',
         'document_name', 'collection_name', 'match_count']
 
     _raw_prefix = 'r_'  # field-name prefix to distinguish raw field returns
-    
-    def __init__(self, xpath=None, collection=None, namespaces=None,
-                 fulltext_options={}):
+
+    def __init__(self, xpath=None, collection=None, document=None,
+            namespaces=None, fulltext_options={}):
         if xpath is not None:
             self.xpath = xpath
 
         # remove leading / from collection name (if any)
         self.set_collection(collection)
+        self.document = document
         self.namespaces = namespaces
         self.filters = []
         self.or_filters = []
@@ -711,7 +720,7 @@ class Xquery(object):
         self.return_fields = {}
         self.additional_return_fields = {}
         # list of field names (in return or additional return) where raw xpath should be used
-        self.raw_fields = []    
+        self.raw_fields = []
         # start/end values for subsequence
         self.start = 0
         self.end = None
@@ -723,7 +732,7 @@ class Xquery(object):
         self.fulltext_options = fulltext_options
         self.ft_query = False   # flag for if the current xquery includes a fulltext query
         self.highlight = None
-        
+
     def __str__(self):
         return self.getQuery()
 
@@ -734,8 +743,12 @@ class Xquery(object):
             collection = collection.lstrip('/')
         self.collection = collection
 
+    def set_document(self, document):
+        self.document = document
+
     def getCopy(self):
-        xq = Xquery(xpath=self.xpath, collection=self.collection, namespaces=self.namespaces)
+        xq = Xquery(xpath=self.xpath, collection=self.collection,
+            document=self.document, namespaces=self.namespaces)
         xq.filters += self.filters
         xq.where_filters += self.where_filters
         xq.or_filters += self.or_filters
@@ -762,18 +775,24 @@ class Xquery(object):
         declarations = None
         if self.namespaces:
             declarations = '\n'.join('''declare namespace %s='%s';''' % (prefix, urn)
-                                for prefix,urn in self.namespaces.iteritems() )
+                                for prefix, urn in self.namespaces.iteritems())
 
         xpath_parts = []
-        if self.collection is not None:
+        if self.document is not None:
+            # if a document is specified, add it it to the top-level query xpath
+            # -- document takes precedence over collection
+            document_xquery = 'doc("%s")' % self.document
+            xpath_parts.append(self.prep_xpath(self.xpath, context=document_xquery))
+
+        elif self.collection is not None:
             # if a collection is specified, add it it to the top-level query xpath
-            # -- prep_xpath handles logic for top-level xpath with multiple components, e.g. foo|bar 
+            # -- prep_xpath handles logic for top-level xpath with multiple components, e.g. foo|bar
             collection_xquery = 'collection("/db/%s")' % self.collection
             xpath_parts.append(self.prep_xpath(self.xpath, context=collection_xquery))
         else:
             xpath_parts.append(self.xpath)
-            
-        xpath_parts += [ '[%s]' % (f,) for f in self.filters ]
+
+        xpath_parts += ['[%s]' % (f,) for f in self.filters]
 
         if self.or_filters:
             xpath_parts.append('[%s]' % (' or '.join(self.or_filters)))
@@ -788,7 +807,7 @@ class Xquery(object):
             # or (as a fallback) the one without them.
             xpath = '(%(xp)s[ft:query(., %(val)s)]|%(xp)s)' % {'xp': xpath,
                                                                  'val': _quote_as_string_literal(self.highlight)}
-            
+
         # requires FLOWR instead of just XQuery  (sort, customized return, etc.)
         if self.order_by or self.return_fields or self.additional_return_fields \
             or self.where_filters or (self.ft_query and self.fulltext_options):
@@ -826,13 +845,13 @@ class Xquery(object):
                         val = 'util:document-name(%s)' % self.xq_var
                     elif field == 'last_modified':
                         val = 'xmldb:last-modified(util:collection-name(%(var)s), util:document-name(%(var)s))' % \
-                            {'var': self.xq_var }
+                            {'var': self.xq_var}
                     elif field == 'match_count':
-                        val = 'count(util:expand(%(var)s)//exist:match)' % {'var': self.xq_var }
+                        val = 'count(util:expand(%(var)s)//exist:match)' % {'var': self.xq_var}
 
                     # define an xquery variable with the same name as the special field
                     let.append('let $%s := %s' % (field, val))
-                    
+
             flowr_let = '\n'.join(let)
 
             where = ['where %s' % filter for filter in self.where_filters]
@@ -928,7 +947,7 @@ class Xquery(object):
             ft_query_template = 'ft:query(%%s, %%s, %s)' % self.ft_option_xqvar
         else:
             ft_query_template = 'ft:query(%s, %s)'
-        
+
         if type == 'contains':
             filter = 'contains(%s, %s)' % (_xpath, _quote_as_string_literal(value))
         if type == 'startswith':
@@ -936,7 +955,7 @@ class Xquery(object):
         if type == 'exact':
             filter = '%s = %s' % (_xpath, _quote_as_string_literal(value))
         if type == 'fulltext_terms':
-            filter = ft_query_template % (_xpath, _quote_as_string_literal(value))            
+            filter = ft_query_template % (_xpath, _quote_as_string_literal(value))
             self.ft_query = True
         if type == 'highlight':
             # highlight is a special case; it has to be handled after the initial xpath
@@ -965,7 +984,6 @@ class Xquery(object):
                 self.or_filters.append(filter)
             else:
                 self.filters.append(filter)
-
 
     def return_only(self, fields, raw=False):
         """Only return the specified fields.
@@ -999,7 +1017,7 @@ class Xquery(object):
 
     def _constructReturn(self):
         """Construct the return portion of a FLOWR xquery."""
-        
+
         if self.return_fields or self.additional_return_fields:
             # constructed return result with partial or additional content
 
@@ -1015,20 +1033,20 @@ class Xquery(object):
                 rblocks = []
             elif self.additional_return_fields:
                 rblocks = ["{%s}" % self.xq_var]    # return entire node
-                
+
             fields = dict(self.return_fields, **self.additional_return_fields)
             for name, xpath in fields.iteritems():
                 # special cases
                 if name in self.special_fields:
                     # reference any special fields requested as xquery variables
-                    rblocks.append('<%(name)s>{$%(name)s}</%(name)s>' % {'name': name })
+                    rblocks.append('<%(name)s>{$%(name)s}</%(name)s>' % {'name': name})
                 elif name in self.raw_fields:
                     xpath = xpath % {'xq_var': self.xq_var}
                     rblocks.append('<%(prefix)s%(name)s>{%(xpath)s}</%(prefix)s%(name)s>' % \
-                        {'prefix': self._raw_prefix, 'name': name, 'xpath': xpath })
+                        {'prefix': self._raw_prefix, 'name': name, 'xpath': xpath})
                 else:
                     rblocks.append(self.prep_xpath(xpath, return_field=True))
-            return 'return <%s>\n ' % (return_el)  + '\n '.join(rblocks) + '\n</%s>' % (return_el)
+            return 'return <%s>\n ' % (return_el) + '\n '.join(rblocks) + '\n</%s>' % (return_el)
         else:
             # return entire node, no constructed return
             return 'return %s' % self.xq_var
@@ -1098,7 +1116,7 @@ class Xquery(object):
         if context is None:
             context = self.xq_var
 
-        if isinstance(parsed_xpath, ast.BinaryExpression) and parsed_xpath.op == '|': 
+        if isinstance(parsed_xpath, ast.BinaryExpression) and parsed_xpath.op == '|':
             # binary OR expression - prep the two expressions and put them back together
             xpath_str = '%(left)s%(op)s%(right)s' % {
                     'op': parsed_xpath.op,
@@ -1144,12 +1162,12 @@ class Xquery(object):
         else:
             # for a relative path, we need $n/(xpath)
             context_path = "%s/" % context
-            
+
         # FIXME: other possible cases?
-        
+
         if context_path is not None:
             xpath_str = "%(context)s%(xpath)s" % {'context': context_path,
-                                                  'xpath': serialize(parsed_xpath) }
+                                                  'xpath': serialize(parsed_xpath)}
 
         if return_field:
             xpath_str = "<field>{%s}</field>" % xpath_str
@@ -1184,7 +1202,7 @@ class Xquery(object):
         """Generate a dictionary of xpaths to match the results as they will be
         returned in a constructed return result (when return fields have
         been specified by :meth:`return_also` or :meth:`return_only`).
-        
+
         :returns: dictionary keyed on field names from argument passed to
             :meth:`return_only` or :meth:`return_also`
         :rtype: dict
@@ -1212,11 +1230,13 @@ class Xquery(object):
 
 # some helpers for handling '__'-separated field names:
 
+
 def _simple_fielddef_to_xpath(fielddef, cls):
     """Convert a foo__bar__baz field definition to the XPath to that node"""
     fields, rest = _split_fielddef(fielddef, cls)
     if fields and not rest:
         return _join_field_xpath(fields)
+
 
 def _split_fielddef(fielddef, cls):
     """Split a field definition into a list of field objects and any
@@ -1239,6 +1259,7 @@ def _split_fielddef(fielddef, cls):
 
     return field_parts, fielddef
 
+
 def _extract_fieldpart(s):
     """Split a field definition into exactly two __-separated parts. If
     there are no __ in the field definition, leave the second part empty."""
@@ -1246,7 +1267,8 @@ def _extract_fieldpart(s):
     if idx < 0:
         return s, ''
     else:
-        return s[:idx], s[idx+2:]
+        return s[:idx], s[idx + 2:]
+
 
 def _join_field_xpath(fields):
     return '/'.join(f.xpath for f in fields)
