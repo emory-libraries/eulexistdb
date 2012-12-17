@@ -19,7 +19,7 @@ from urlparse import urlsplit, urlunsplit
 
 from eulexistdb import db
 
-from testsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_URL_DBA, \
+from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_URL_DBA, \
     EXISTDB_TEST_COLLECTION
 
 
