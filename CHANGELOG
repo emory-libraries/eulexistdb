@@ -5,6 +5,12 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.17
+----
+
+* Support single-document queries via :class:`eulexistdb.query.QuerySet` using
+  new ``document_path`` filter.
+
 0.16
 ----
 
