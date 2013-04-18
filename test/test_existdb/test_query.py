@@ -31,8 +31,9 @@ class QuerySubModel(xmlmap.XmlObject):
     subname = xmlmap.StringField("subname")
     ssc = xmlmap.NodeField('subsubclass', xmlmap.XmlObject)
 
+
 class QueryTestModel(xmlmap.XmlObject):
-    ROOT_NAMESPACES = {'ex' : 'http://example.com/'}
+    ROOT_NAMESPACES = {'ex': 'http://example.com/'}
     id = xmlmap.StringField('@id')
     name = xmlmap.StringField('name')
     description = xmlmap.StringField('description')
@@ -194,35 +195,53 @@ class ExistQueryTest(unittest.TestCase):
 
     def test_filter_in(self):
         fqs = self.qs.filter(id__in=['abc', 'xyz', 'qrs'])
-        self.assertEqual(2, fqs.count(),
+        self.assertEqual(
+            2, fqs.count(),
             "should get 2 matches for filter on id in list (got %s)" % fqs.count())
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
 
         fqs = self.qs.filter(document_name__in=['f1.xml', 'f2.xml'])
-        self.assertEqual(2, fqs.count(),
+        self.assertEqual(
+            2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
 
         # filtering on a special field - should still be able to return/access it via only
-        fqs = self.qs.filter(document_name__in=['f1.xml', 'f2.xml']).only('id',
-            'document_name').order_by('document_name')
-        self.assertEqual(2, fqs.count(),
+        fqs = self.qs.filter(document_name__in=['f1.xml', 'f2.xml']) \
+                     .only('id', 'document_name').order_by('document_name')
+        self.assertEqual(
+            2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
         self.assertEqual('f1.xml', fqs[0].document_name)
 
-        fqs = self.qs.filter(document_name__in=['f1.xml',  'f2.xml']).also('id',
-            'document_name').order_by('document_name')
-        self.assertEqual(2, fqs.count(),
+        fqs = self.qs.filter(document_name__in=['f1.xml',  'f2.xml']) \
+                     .also('id', 'document_name').order_by('document_name')
+        self.assertEqual(
+            2, fqs.count(),
             "should get 2 matches for filter on document name in list (got %s)" % fqs.count())
         self.assertEqual('f1.xml', fqs[0].document_name)
+
+    def test_filter_exists(self):
+        fqs = self.qs.filter(id__exists=True)
+        self.assertEqual(4, fqs.count(),
+                         "filter on id existsreturns all documents")
 
     def test_or_filter(self):
         fqs = self.qs.or_filter(id='abc', name='four').only('id')
-        self.assertEqual(2, fqs.count(),
+        self.assertEqual(
+            2, fqs.count(),
             "should get 2 matches for OR filter on id='abc' or name='four' (got %s)" % fqs.count())
         ids = [obj.id for obj in fqs.all()]
         self.assert_('abc' in ids, 'id "abc" in list of ids when OR filter includes id="abc"')
         self.assert_('def' in ids, 'id "def" in list of ids when OR filter includes name="four')
+
+    def test_exclude(self):
+        fqs = self.qs.exclude(id='abc', name='one').only('id')
+        self.assertEqual(
+            2, fqs.count(),
+            "should get 2 matches for exclude filter on id='abc' or name='one' (got %s)" % fqs.count())
+        ids = [obj.id for obj in fqs.all()]
+        self.assert_('abc' not in ids, 'id "abc" should not be in list of ids when exclude id="abc"')
 
     def test_filter_document_path(self):
         # get full test path to first document
@@ -503,8 +522,8 @@ class ExistQueryTest__FullText(unittest.TestCase):
 
     def test_filter_fulltext_options(self):
         qs = QuerySet(using=self.db, xpath='/root',
-                    collection=COLLECTION, model=QueryTestModel,
-                    fulltext_options={'default-operator': 'and'})
+                      collection=COLLECTION, model=QueryTestModel,
+                      fulltext_options={'default-operator': 'and'})
         # search for terms present in fixtures - but not both present in one doc
         fqs = qs.filter(description__fulltext_terms='only third')
         # for now, just confirm that the option is passed through to query
@@ -519,7 +538,7 @@ class ExistQueryTest__FullText(unittest.TestCase):
 
     def test_only__fulltext_score(self):
         fqs = self.qs.filter(description__fulltext_terms='one').only('fulltext_score', 'name')
-        self.assert_(isinstance(fqs[0], QueryTestModel))	# actually a Partial type derived from this
+        self.assert_(isinstance(fqs[0], QueryTestModel))  # actually a Partial type derived from this
         # fulltext score attribute should be present
         self.assertNotEqual(fqs[0].fulltext_score, None)
         self.assert_(float(fqs[0].fulltext_score) > 0.5)    # full-text score should be a float
@@ -542,7 +561,6 @@ class ExistQueryTest__FullText(unittest.TestCase):
         fqs = self.qs.filter(description__fulltext_terms='only two').filter(highlight=False)
         # with highlighting disabled, should not have exist:match tags
         self.assert_('<exist:match' not in fqs[0].serialize())
-
 
     def test_highlight(self):
         fqs = self.qs.filter(highlight='supercalifragilistic')
@@ -667,13 +685,31 @@ class XqueryTest(unittest.TestCase):
         xq = Xquery(xpath='/el')
         xq.add_filter('document_name', 'in', ['a.xml', 'b.xml'])
         self.assert_('let $document_name' in xq.getQuery())
-        self.assert_('where contains(("a.xml","b.xml"), $document_name)' in xq.getQuery())
+        self.assert_('where contains(("a.xml","b.xml"), $document_name)'
+                     in xq.getQuery())
+
+    def test_filter_exists(self):
+        xq = Xquery(xpath='/el')
+        xq.add_filter('@id', 'exists')
+        self.assertEquals('/el[@id]', xq.getQuery())
 
     def test_or_filters(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('.', 'contains', 'dog', mode='OR')
         xq.add_filter('.', 'startswith', 'S', mode='OR')
-        self.assertEquals('/el[contains(., "dog") or starts-with(., "S")]', xq.getQuery())
+        self.assertEquals('/el[contains(., "dog") or starts-with(., "S")]',
+                          xq.getQuery())
+
+    def test_not_filters(self):
+        xq = Xquery(xpath='/el')
+        xq.add_filter('.', 'contains', 'dog', mode='NOT')
+        self.assertEquals('/el[not(contains(., "dog"))]', xq.getQuery())
+
+        xq = Xquery(xpath='/el')
+        xq.add_filter('.', 'contains', 'dog', mode='NOT')
+        xq.add_filter('.', 'startswith', 'S', mode='NOT')
+        self.assertEquals('/el[not(contains(., "dog") or starts-with(., "S"))]',
+                          xq.getQuery())
 
     def test_return_only(self):
         xq = Xquery(xpath='/el')
