@@ -224,7 +224,13 @@ class ExistQueryTest(unittest.TestCase):
     def test_filter_exists(self):
         fqs = self.qs.filter(id__exists=True)
         self.assertEqual(4, fqs.count(),
-                         "filter on id existsreturns all documents")
+                         "filter on id exists=true returns all documents")
+        fqs = self.qs.filter(id__exists=False)
+        self.assertEqual(0, fqs.count(),
+                         "filter on id exists=false returns no documents")
+        fqs = self.qs.filter(wnn__exists=False)
+        self.assertEqual(3, fqs.count(),
+                         "filter on wacky node name exists=false returns 3 documents")
 
     def test_or_filter(self):
         fqs = self.qs.or_filter(id='abc', name='four').only('id')
@@ -242,6 +248,22 @@ class ExistQueryTest(unittest.TestCase):
             "should get 2 matches for exclude filter on id='abc' or name='one' (got %s)" % fqs.count())
         ids = [obj.id for obj in fqs.all()]
         self.assert_('abc' not in ids, 'id "abc" should not be in list of ids when exclude id="abc"')
+
+    def test_filter_gtelte(self):
+        # < <= > >=
+
+        # subclass to add a numeric field to test with
+        class CountQueryTestModel(QueryTestModel):
+            name_count = xmlmap.IntegerField('count(name)')
+
+        qs = QuerySet(using=self.db, xpath='/root', collection=COLLECTION,
+                      model=CountQueryTestModel)
+
+        # each fixture has one and only one name
+        self.assertEqual(0, qs.filter(name_count__gt=1).count())
+        self.assertEqual(4, qs.filter(name_count__gte=1).count())
+        self.assertEqual(4, qs.filter(name_count__lte=1).count())
+        self.assertEqual(0, qs.filter(name_count__lt=1).count())
 
     def test_filter_document_path(self):
         # get full test path to first document
@@ -690,8 +712,27 @@ class XqueryTest(unittest.TestCase):
 
     def test_filter_exists(self):
         xq = Xquery(xpath='/el')
-        xq.add_filter('@id', 'exists')
+        xq.add_filter('@id', 'exists', True)
         self.assertEquals('/el[@id]', xq.getQuery())
+
+        xq = Xquery(xpath='/el')
+        xq.add_filter('@id', 'exists', False)
+        self.assertEquals('/el[not(@id)]', xq.getQuery())
+
+    def test_filter_gtlt(self):
+        xq = Xquery(xpath='/el')
+        xq.add_filter('@id', 'gt', 5)
+        self.assert_('where $n/@id > 5' in xq.getQuery())
+
+        xq = Xquery(xpath='/el')
+        xq.add_filter('@id', 'gte', 5)
+        self.assert_('where $n/@id >= 5' in xq.getQuery())
+
+        xq.add_filter('@id', 'lt', '5')
+        self.assert_('where $n/@id < 5' in xq.getQuery())
+
+        xq.add_filter('@id', 'lte', 3)
+        self.assert_('where $n/@id <= 3' in xq.getQuery())
 
     def test_or_filters(self):
         xq = Xquery(xpath='/el')

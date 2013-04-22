@@ -184,12 +184,12 @@ class QuerySet(object):
            content will be returned even if it does not include the search terms.
            Requires a properly configured lucene index.
          * ``in`` - field or object is present in a list of values
-         * ``exists`` - field or object is present in the document, e.g.::
-
-                queryset.filter(id__exists=True)
-
+         * ``exists`` - field or object is or is not present in the document;
+            if True, field must be present; if False, must not be present.
          * ``document_path`` - restrict the query to a single document;
            this must be a document path as returned by eXist, with full db path
+         * ``gt``, ``gte``, ``lt``, ``lte`` - greater than, greater than or equal,
+            less than, less than or equal
 
         Field may be in the format of field__subfield when field is an NodeField
         or NodeListField and subfield is a configured element on that object.
@@ -702,7 +702,8 @@ class Xquery(object):
     xq_var = '$n'           # xquery variable to use when constructing flowr query
     ft_option_xqvar = '$ft_options'  # xquery variable for fulltext options, if needed
     available_filters = ['contains', 'startswith', 'exact', 'fulltext_terms',
-                         'highlight', 'in', 'document_path', 'exists']
+                         'highlight', 'in', 'document_path', 'exists',
+                         'gt', 'gte', 'lt', 'lte']
     special_fields = ['fulltext_score', 'last_modified', 'hash',
                       'document_name', 'collection_name', 'match_count']
 
@@ -926,7 +927,7 @@ class Xquery(object):
     def distinct(self):
         self._distinct = True
 
-    def add_filter(self, xpath, type, value=None, mode=None):
+    def add_filter(self, xpath, type, value, mode=None):
         """
         Add a filter to the xpath.  Takes xpath, type of filter, and value.
         Filter types currently implemented:
@@ -936,7 +937,8 @@ class Xquery(object):
          * fulltext_terms - full-text query; requires lucene index configured in exist
          * highlight - run a full-text query, but return even if no matches
          * in - value is present in a list
-         * exists - element is present in the document
+         * exists - element is present or not present in the document
+         * gt,gte,lt,lte : >, >=, <, <=
 
         By default, all filters are ANDed together.  Specifying a ``mode`` of **OR**
         will OR together all filters added with a mode of OR.
@@ -944,6 +946,8 @@ class Xquery(object):
         # possibilities to be added:
         #   gt/gte,lt/lte, endswith, range, date, isnull (?), regex (?)
         #   search (full-text search with full-text indexing - like contains but faster)
+
+        gtlt_ops = {'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}
 
         if type not in self.available_filters:
             raise TypeError(repr(type) + ' is not a supported filter type')
@@ -970,7 +974,11 @@ class Xquery(object):
         if type == 'exact':
             filter = '%s = %s' % (_xpath, _quote_as_string_literal(value))
         if type == 'exists':
-            filter = _xpath
+            if value is True:
+                filter = _xpath
+            else:
+                filter = 'not(%s)' % _xpath
+
         if type == 'fulltext_terms':
             filter = ft_query_template % (_xpath, _quote_as_string_literal(value))
             self.ft_query = True
@@ -991,9 +999,17 @@ class Xquery(object):
             filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
                                                       for v in value),
                                              _xpath)
+        # greater than / less than operations
+        if type in gtlt_ops:
+            try:
+                val = int(value)
+            except ValueError:
+                val = _quote_as_string_literal(value)
+            # NOTE: using xq variable because these will be added as where filters
+            filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
 
         if filter is not None:
-            if xpath in self.special_fields:
+            if xpath in self.special_fields or type in gtlt_ops:
                 # filters on pre-defined fields must occur in 'where' section, after
                 # relevant xquery variable has been defined
                 self.where_filters.append(filter)

@@ -8,8 +8,9 @@ any necessary information about installation or upgrade notes.
 0.17
 ----
 
-* Support for filtering on presence of an xpath
-  :class:`eulexistdb.query.QuerySet` using ``exists`` filter.
+* New filters and operators supported on :class:`eulexistdb.query.QuerySet`:
+  * ``exists`` - filter on the presence of absence of a node
+  * comparison operators ``gt``, ``gte``, ``lt``, ``lte``
 * Support for excluding documents using all existing filters
   with new method :meth:`eulexistdb.query.QuerySet.exclude`.
 
