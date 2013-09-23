@@ -5,7 +5,7 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
-0.17
+0.18
 ----
 
 * New filters and operators supported on :class:`eulexistdb.query.QuerySet`:
