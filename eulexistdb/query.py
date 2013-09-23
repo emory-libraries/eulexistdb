@@ -184,8 +184,12 @@ class QuerySet(object):
            content will be returned even if it does not include the search terms.
            Requires a properly configured lucene index.
          * ``in`` - field or object is present in a list of values
-         * ``document_path`` - restrict the query to a singled document;
+         * ``exists`` - field or object is or is not present in the document;
+            if True, field must be present; if False, must not be present.
+         * ``document_path`` - restrict the query to a single document;
            this must be a document path as returned by eXist, with full db path
+         * ``gt``, ``gte``, ``lt``, ``lte`` - greater than, greater than or equal,
+            less than, less than or equal
 
         Field may be in the format of field__subfield when field is an NodeField
         or NodeListField and subfield is a configured element on that object.
@@ -231,7 +235,7 @@ class QuerySet(object):
 
             # highlighting is only an xquery filter when passed as a string
             elif lookuptype != 'highlight' or \
-                lookuptype == 'highlight' and not isinstance(value, BooleanType):
+                    lookuptype == 'highlight' and not isinstance(value, BooleanType):
                 qscopy.query.add_filter(xpath, lookuptype, value, combine)
 
             # enable highlighting when a full-text query is used
@@ -268,7 +272,7 @@ class QuerySet(object):
         :param field: the name (a string) of a field in the QuerySet's
                       :attr:`model`.  If the field is prefixed with '-', results
                       will be sorted in descending order.  If the field is
-                      prefixed with '~', results will use a case-insensitev
+                      prefixed with '~', results will use a case-insensitive
                       sort.  The flags '-' and '~' may be combined in any order.
 
         Example usage::
@@ -440,7 +444,12 @@ class QuerySet(object):
         """
         return self._getCopy()
 
-    # exclude?
+    def exclude(self, **kwargs):
+        """Filter the QuerySet to return a subset of the documents that
+        do **not** contain any of the filters.  Uses the same syntax and allows
+        for the same filters as :meth:`filter`.
+        """
+        return self.filter(combine='NOT', **kwargs)
 
     def using(self, collection):
         '''Specify the eXist collection to be queried.
@@ -693,14 +702,15 @@ class Xquery(object):
     xq_var = '$n'           # xquery variable to use when constructing flowr query
     ft_option_xqvar = '$ft_options'  # xquery variable for fulltext options, if needed
     available_filters = ['contains', 'startswith', 'exact', 'fulltext_terms',
-        'highlight', 'in', 'document_path']
+                         'highlight', 'in', 'document_path', 'exists',
+                         'gt', 'gte', 'lt', 'lte']
     special_fields = ['fulltext_score', 'last_modified', 'hash',
-        'document_name', 'collection_name', 'match_count']
+                      'document_name', 'collection_name', 'match_count']
 
     _raw_prefix = 'r_'  # field-name prefix to distinguish raw field returns
 
     def __init__(self, xpath=None, collection=None, document=None,
-            namespaces=None, fulltext_options={}):
+                 namespaces=None, fulltext_options={}):
         if xpath is not None:
             self.xpath = xpath
 
@@ -710,6 +720,7 @@ class Xquery(object):
         self.namespaces = namespaces
         self.filters = []
         self.or_filters = []
+        self.not_filters = []
         # info for filters that use special fields & require let/where in xquery
         self.where_filters = []
         self.where_fields = []
@@ -752,6 +763,7 @@ class Xquery(object):
         xq.filters += self.filters
         xq.where_filters += self.where_filters
         xq.or_filters += self.or_filters
+        xq.not_filters += self.not_filters
         xq.where_fields = self.where_fields
         xq.order_by = self.order_by
         xq.order_mode = self.order_mode
@@ -797,6 +809,9 @@ class Xquery(object):
         if self.or_filters:
             xpath_parts.append('[%s]' % (' or '.join(self.or_filters)))
 
+        if self.not_filters:
+            xpath_parts.append('[not(%s)]' % (' or '.join(self.not_filters)))
+
         xpath = ''.join(xpath_parts)
         # add highlighting if requested
         if self.highlight is not None:
@@ -806,7 +821,7 @@ class Xquery(object):
             # constructed xpath, either one that contains the fulltext search terms (if it exists),
             # or (as a fallback) the one without them.
             xpath = '(%(xp)s[ft:query(., %(val)s)]|%(xp)s)' % {'xp': xpath,
-                                                                 'val': _quote_as_string_literal(self.highlight)}
+                                                               'val': _quote_as_string_literal(self.highlight)}
 
         # requires FLOWR instead of just XQuery  (sort, customized return, etc.)
         if self.order_by or self.return_fields or self.additional_return_fields \
@@ -922,6 +937,8 @@ class Xquery(object):
          * fulltext_terms - full-text query; requires lucene index configured in exist
          * highlight - run a full-text query, but return even if no matches
          * in - value is present in a list
+         * exists - element is present or not present in the document
+         * gt,gte,lt,lte : >, >=, <, <=
 
         By default, all filters are ANDed together.  Specifying a ``mode`` of **OR**
         will OR together all filters added with a mode of OR.
@@ -929,6 +946,8 @@ class Xquery(object):
         # possibilities to be added:
         #   gt/gte,lt/lte, endswith, range, date, isnull (?), regex (?)
         #   search (full-text search with full-text indexing - like contains but faster)
+
+        gtlt_ops = {'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}
 
         if type not in self.available_filters:
             raise TypeError(repr(type) + ' is not a supported filter type')
@@ -954,6 +973,12 @@ class Xquery(object):
             filter = 'starts-with(%s, %s)' % (_xpath, _quote_as_string_literal(value))
         if type == 'exact':
             filter = '%s = %s' % (_xpath, _quote_as_string_literal(value))
+        if type == 'exists':
+            if value is True:
+                filter = _xpath
+            else:
+                filter = 'not(%s)' % _xpath
+
         if type == 'fulltext_terms':
             filter = ft_query_template % (_xpath, _quote_as_string_literal(value))
             self.ft_query = True
@@ -972,16 +997,26 @@ class Xquery(object):
 
         if type == 'in':
             filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
-                                                    for v in value),
+                                                      for v in value),
                                              _xpath)
+        # greater than / less than operations
+        if type in gtlt_ops:
+            try:
+                val = int(value)
+            except ValueError:
+                val = _quote_as_string_literal(value)
+            # NOTE: using xq variable because these will be added as where filters
+            filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
 
         if filter is not None:
-            if xpath in self.special_fields:
+            if xpath in self.special_fields or type in gtlt_ops:
                 # filters on pre-defined fields must occur in 'where' section, after
                 # relevant xquery variable has been defined
                 self.where_filters.append(filter)
             elif mode == 'OR':
                 self.or_filters.append(filter)
+            elif mode == 'NOT':
+                self.not_filters.append(filter)
             else:
                 self.filters.append(filter)
 

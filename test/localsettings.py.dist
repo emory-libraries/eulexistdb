@@ -17,6 +17,9 @@
 # must be set before importing anything from django
 os.environ['DJANGO_SETTINGS_MODULE'] = 'localsettings'
 
+# secret key required as of django 1.5
+SECRET_KEY = 'notsomuchofasecretafterall'
+
 
 EXISTDB_SERVER_PROTOCOL = "http://"
 EXISTDB_SERVER_HOST     = "localhost:8080/exist"
