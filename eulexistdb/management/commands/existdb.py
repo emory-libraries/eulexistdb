@@ -1,5 +1,5 @@
 # file eulexistdb/management/commands/existdb.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,18 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from getpass import getpass
 import time
+from optparse import make_option
+
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
+from django.test.utils import override_settings
+
 from eulexistdb.db import ExistDB
 
-class Command(BaseCommand):    
+
+class Command(BaseCommand):
     help = """Tasks for managing eXist-db index configuration file.
 
 Available subcommands:
@@ -34,8 +40,24 @@ Available subcommands:
 
     args = ' | '. join(arg_list)
 
-    # FIXME/TODO: possibly convert into a django LabelCommand 
-    
+    def get_password_option(option, opt, value, parser):
+        setattr(parser.values, option.dest, getpass())
+
+
+    option_list = BaseCommand.option_list + (
+        make_option('--username', '-u',
+            dest='username',
+            action='store',
+            help='''Username to use when connecting to eXist (overrides any in local settings)'''),
+        make_option('--password', '-p',
+            dest='password',
+            action='callback', callback=get_password_option,
+            help='''Prompt for password (required when --username is specified)'''),
+        )
+
+
+    # FIXME/TODO: possibly convert into a django LabelCommand
+
     def handle(self, *args, **options):
         if not len(args) or args[0] == 'help':
             print self.help
@@ -58,11 +80,25 @@ Available subcommands:
         collection = settings.EXISTDB_ROOT_COLLECTION
         index = settings.EXISTDB_INDEX_CONFIGFILE
 
+        credentials = {}
+        if options.get('username') is not None:
+            credentials['EXISTDB_SERVER_USER'] = options.get('username')
+        if options.get('password') is not None:
+            credentials['EXISTDB_SERVER_PASSWORD'] = options.get('password')
+
         try:
             # Explicitly request no timeout (even if one is configured
             # in django settings), since some tasks (such as
             # reindexing) could take a while.
-            self.db = ExistDB(timeout=None)
+
+            if credentials:
+                # NOTE: override_settings is a test utility, but this is currently
+                # the simplest way to specify credentials, since by default existdb
+                #
+                with override_settings(**credentials):
+                    self.db = ExistDB(timeout=None)
+            else:
+                self.db = ExistDB(timeout=None)
 
             # check there is already an index config
             hasindex = self.db.hasCollectionIndex(collection)
@@ -126,7 +162,7 @@ is new or has changed, you should reindex the collection.
                     print "Reindexing took %.2f seconds" % (end_time - start_time)
                 else:
                     print "Failed to reindexed collection %s" % collection
-                    print "-- Check that the configured exist user is in the exist DBA group."
+                    print "-- Check that the configured exist user is in the exist DBA group or specify different credentials."
 
 
         except Exception as err:
