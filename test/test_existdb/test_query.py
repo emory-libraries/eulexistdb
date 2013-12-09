@@ -42,6 +42,7 @@ class QueryTestModel(xmlmap.XmlObject):
     or_field = xmlmap.StringField('name|description|@id')
     substring = xmlmap.StringField('substring(name, 1, 1)')
     nsfield = xmlmap.StringField('ex:field')
+    years = xmlmap.StringListField('year')
 
 COLLECTION = EXISTDB_TEST_COLLECTION
 
@@ -56,18 +57,24 @@ FIXTURE_ONE = '''
            <subname>la</subname>
         </sub>
         <ex:field>namespaced</ex:field>
+        <year>2001</year>
+        <year>2000</year>
     </root>
 '''
 FIXTURE_TWO = '''
     <root id="abc">
         <name>two</name>
         <description>this one only has two</description>
+        <year>1990</year>
+        <year>1999</year>
+        <year>2013</year>
     </root>
 '''
 FIXTURE_THREE = '''
     <root id="xyz">
         <name>three</name>
         <description>third!</description>
+        <year>2010</year>
     </root>
 '''
 FIXTURE_FOUR = '''
@@ -335,6 +342,19 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_(fqs[3].description.startswith('third'))
         fqs = self.qs.order_by('-~description')
         self.assert_(fqs[3].description.startswith('third'))
+
+    def test_order_by_raw(self):
+        fqs = self.qs.order_by_raw('min(%(xq_var)s/year)')
+        self.assert_('1990' in fqs[0].years)
+        self.assert_('2001' in fqs[1].years)
+        self.assert_('2010' in fqs[2].years)
+        self.assertEqual([], fqs[3].years)
+
+        fqs = self.qs.order_by_raw('min(%(xq_var)s/year)', ascending=False)
+        self.assertEqual([], fqs[0].years)
+        self.assert_('2010' in fqs[1].years)
+        self.assert_('2001' in fqs[2].years)
+        self.assert_('1990' in fqs[3].years)
 
     def test_only(self):
         self.qs.only('name')

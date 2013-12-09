@@ -5,6 +5,13 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.19
+----
+* New method for sorting a :class:`eulexistdb.query.QuerySet`
+  by a raw XPath, for those cases when the desired sort xpath cannot be
+  specified as an :mod:`xmlmap` field:
+  :meth:`eulexistdb.query.QuerySet.order_by_raw'
+
 0.18
 ----
 
