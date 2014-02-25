@@ -748,11 +748,12 @@ class XqueryTest(unittest.TestCase):
         xq.add_filter('@id', 'gte', 5)
         self.assert_('where $n/@id >= 5' in xq.getQuery())
 
-        xq.add_filter('@id', 'lt', '5')
-        self.assert_('where $n/@id < 5' in xq.getQuery())
+        xq.add_filter('@id', 'lt', '10')
+        self.assert_('where $n/@id >= 5' in xq.getQuery())
+        self.assert_('and $n/@id < "10"' in xq.getQuery())
 
         xq.add_filter('@id', 'lte', 3)
-        self.assert_('where $n/@id <= 3' in xq.getQuery())
+        self.assert_('and $n/@id <= 3' in xq.getQuery())
 
     def test_or_filters(self):
         xq = Xquery(xpath='/el')

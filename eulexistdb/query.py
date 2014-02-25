@@ -888,8 +888,11 @@ class Xquery(object):
 
             flowr_let = '\n'.join(let)
 
-            where = ['where %s' % filter for filter in self.where_filters]
-            flowr_where = '\n'.join(where)
+            # if any where filters are present, combine them with 'and',
+            # prepend with one 'where' statement
+            flowr_where = ''
+            if self.where_filters:
+                flowr_where = 'where ' + '\n and '.join(self.where_filters)
 
             # for now, assume sort relative to root element
             if self.order_by:
@@ -1031,9 +1034,14 @@ class Xquery(object):
                                              _xpath)
         # greater than / less than operations
         if type in gtlt_ops:
-            try:
-                val = int(value)
-            except ValueError:
+            # differentiate between actual numbers and numeric strings,
+            # since they will be compared differently
+
+            # if already numeric, use as is without any conversion
+            if isinstance(value, (int, long)):
+                val = value
+            # otherwise, treat it as a string
+            else:
                 val = _quote_as_string_literal(value)
             # NOTE: using xq variable because these will be added as where filters
             filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
