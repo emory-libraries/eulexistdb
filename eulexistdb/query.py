@@ -1029,25 +1029,30 @@ class Xquery(object):
                             xpath + ', but the entire result will be highlighted')
 
         if type == 'in':
-            filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
-                                                      for v in value),
-                                             _xpath)
+            filter = ' or '.join(['%s=%s' % (_xpath, _quote_as_string_literal(v))
+                                 for v in value])
+
+            # filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
+            #                                           for v in value),
+            #                                  _xpath)
         # greater than / less than operations
         if type in gtlt_ops:
             # differentiate between actual numbers and numeric strings,
             # since they will be compared differently
 
             # if already numeric, use as is without any conversion
-            if isinstance(value, (int, long)):
+            if isinstance(value, (int, long, float)):
                 val = value
             # otherwise, treat it as a string
             else:
                 val = _quote_as_string_literal(value)
             # NOTE: using xq variable because these will be added as where filters
-            filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
+            # filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
+            filter = '%s %s %s' % (_xpath, gtlt_ops[type], val)
 
         if filter is not None:
-            if xpath in self.special_fields or type in gtlt_ops:
+            # if xpath in self.special_fields or type in gtlt_ops:
+            if xpath in self.special_fields:
                 # filters on pre-defined fields must occur in 'where' section, after
                 # relevant xquery variable has been defined
                 self.where_filters.append(filter)

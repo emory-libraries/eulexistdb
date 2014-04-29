@@ -721,13 +721,13 @@ class XqueryTest(unittest.TestCase):
     def test_filter_in(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('@id', 'in', ['a', 'b', 'c'])
-        self.assertEquals('/el[contains(("a","b","c"), @id)]', xq.getQuery())
+        self.assertEquals('/el[@id="a" or @id="b" or @id="c"]', xq.getQuery())
 
         # filter on a 'special' field - requires let & where statements
         xq = Xquery(xpath='/el')
         xq.add_filter('document_name', 'in', ['a.xml', 'b.xml'])
         self.assert_('let $document_name' in xq.getQuery())
-        self.assert_('where contains(("a.xml","b.xml"), $document_name)'
+        self.assert_('where $document_name="a.xml" or $document_name="b.xml"'
                      in xq.getQuery())
 
     def test_filter_exists(self):
