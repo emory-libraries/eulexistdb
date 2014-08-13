@@ -1,6 +1,14 @@
 EULexistdb
 ==========
 
+   
+.. image:: https://pypip.in/version/eulexistdb/badge.png  
+   :target: https://pypi.python.org/pypi/eulexistdb
+
+.. image:: https://pypip.in/license/eulexistdb/badge.png
+
+.. image:: https://pypip.in/download/eulexistdb/badge.png
+
 EULexistdb is a `Python <http://www.python.org/>`_ module that
 provides utilities and classes for interacting with the `eXist-db XML
 Database <http://exist.sourceforge.net/>`_ (version 1.4) in a
