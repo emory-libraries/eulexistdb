@@ -10,7 +10,7 @@ any necessary information about installation or upgrade notes.
 * New method for sorting a :class:`eulexistdb.query.QuerySet`
   by a raw XPath, for those cases when the desired sort xpath cannot be
   specified as an :mod:`xmlmap` field:
-  :meth:`eulexistdb.query.QuerySet.order_by_raw'
+  :meth:`eulexistdb.query.QuerySet.order_by_raw`
 * The Django manage.py script for managing eXist-DB index configuration
   files now takes optional username and password credentials, for use
   with sites that run in guest mode or with limited access.
@@ -61,4 +61,3 @@ any necessary information about installation or upgrade notes.
 
 * Split out existdb-specific components from :mod:`eulcore`; now
   depends on :mod:`eulxml`.
-
