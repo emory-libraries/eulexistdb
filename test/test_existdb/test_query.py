@@ -42,6 +42,7 @@ class QueryTestModel(xmlmap.XmlObject):
     or_field = xmlmap.StringField('name|description|@id')
     substring = xmlmap.StringField('substring(name, 1, 1)')
     nsfield = xmlmap.StringField('ex:field')
+    years = xmlmap.StringListField('year')
 
 COLLECTION = EXISTDB_TEST_COLLECTION
 
@@ -56,18 +57,24 @@ FIXTURE_ONE = '''
            <subname>la</subname>
         </sub>
         <ex:field>namespaced</ex:field>
+        <year>2001</year>
+        <year>2000</year>
     </root>
 '''
 FIXTURE_TWO = '''
     <root id="abc">
         <name>two</name>
         <description>this one only has two</description>
+        <year>1990</year>
+        <year>1999</year>
+        <year>2013</year>
     </root>
 '''
 FIXTURE_THREE = '''
     <root id="xyz">
         <name>three</name>
         <description>third!</description>
+        <year>2010</year>
     </root>
 '''
 FIXTURE_FOUR = '''
@@ -335,6 +342,19 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_(fqs[3].description.startswith('third'))
         fqs = self.qs.order_by('-~description')
         self.assert_(fqs[3].description.startswith('third'))
+
+    def test_order_by_raw(self):
+        fqs = self.qs.order_by_raw('min(%(xq_var)s/year)')
+        self.assert_('1990' in fqs[0].years)
+        self.assert_('2001' in fqs[1].years)
+        self.assert_('2010' in fqs[2].years)
+        self.assertEqual([], fqs[3].years)
+
+        fqs = self.qs.order_by_raw('min(%(xq_var)s/year)', ascending=False)
+        self.assertEqual([], fqs[0].years)
+        self.assert_('2010' in fqs[1].years)
+        self.assert_('2001' in fqs[2].years)
+        self.assert_('1990' in fqs[3].years)
 
     def test_only(self):
         self.qs.only('name')
@@ -701,13 +721,13 @@ class XqueryTest(unittest.TestCase):
     def test_filter_in(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('@id', 'in', ['a', 'b', 'c'])
-        self.assertEquals('/el[contains(("a","b","c"), @id)]', xq.getQuery())
+        self.assertEquals('/el[@id="a" or @id="b" or @id="c"]', xq.getQuery())
 
         # filter on a 'special' field - requires let & where statements
         xq = Xquery(xpath='/el')
         xq.add_filter('document_name', 'in', ['a.xml', 'b.xml'])
         self.assert_('let $document_name' in xq.getQuery())
-        self.assert_('where contains(("a.xml","b.xml"), $document_name)'
+        self.assert_('where $document_name="a.xml" or $document_name="b.xml"'
                      in xq.getQuery())
 
     def test_filter_exists(self):
@@ -722,17 +742,18 @@ class XqueryTest(unittest.TestCase):
     def test_filter_gtlt(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('@id', 'gt', 5)
-        self.assert_('where $n/@id > 5' in xq.getQuery())
+        self.assert_('el[@id > 5]' in xq.getQuery())
 
         xq = Xquery(xpath='/el')
         xq.add_filter('@id', 'gte', 5)
-        self.assert_('where $n/@id >= 5' in xq.getQuery())
+        self.assert_('/el[@id >= 5]' in xq.getQuery())
 
-        xq.add_filter('@id', 'lt', '5')
-        self.assert_('where $n/@id < 5' in xq.getQuery())
+        xq.add_filter('@id', 'lt', '10')
+        self.assert_('el[@id >= 5]' in xq.getQuery())
+        self.assert_('[@id < "10"]' in xq.getQuery())
 
         xq.add_filter('@id', 'lte', 3)
-        self.assert_('where $n/@id <= 3' in xq.getQuery())
+        self.assert_('[@id <= 3]' in xq.getQuery())
 
     def test_or_filters(self):
         xq = Xquery(xpath='/el')

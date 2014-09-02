@@ -303,6 +303,23 @@ class QuerySet(object):
         qscopy.query.sort(xpath, **sort_opts)
         return qscopy
 
+    def order_by_raw(self, xpath, ascending=True):
+        """Order results returned by a raw XPath.
+
+        :param xpath: the xpath to be used
+
+        This method returns an updated copy of the QuerySet. It does not
+        modify the original.
+
+        Example usage::
+
+            qs.order_by_raw('min(%(xq_var)s//date/string())')
+
+        """
+        qscopy = self._getCopy()
+        qscopy.query.sort_raw(xpath, ascending=ascending)
+        return qscopy
+
     def only(self, *fields):
         """Limit results to include only specified fields.
 
@@ -726,6 +743,7 @@ class Xquery(object):
         self.where_fields = []
         # sort information - field to sort on, ascending/descending
         self.order_by = None
+        self.order_by_rawxpath = False
         self.order_mode = None
         # also/only fields
         self.return_fields = {}
@@ -766,6 +784,7 @@ class Xquery(object):
         xq.not_filters += self.not_filters
         xq.where_fields = self.where_fields
         xq.order_by = self.order_by
+        xq.order_by_rawxpath = self.order_by_rawxpath
         xq.order_mode = self.order_mode
         xq._distinct = self._distinct
         # return *copies* of dictionaries, not references to the ones in this object!
@@ -869,13 +888,20 @@ class Xquery(object):
 
             flowr_let = '\n'.join(let)
 
-            where = ['where %s' % filter for filter in self.where_filters]
-            flowr_where = '\n'.join(where)
+            # if any where filters are present, combine them with 'and',
+            # prepend with one 'where' statement
+            flowr_where = ''
+            if self.where_filters:
+                flowr_where = 'where ' + '\n and '.join(self.where_filters)
 
             # for now, assume sort relative to root element
             if self.order_by:
                 if self.order_by in self.special_fields:
                     order_field = '$%s' % self.order_by
+                elif self.order_by_rawxpath:
+                    # if order raw xpath flag is set, do not do any futher prep
+                    # but insert xquery variable if referenced
+                    order_field = self.order_by % {'xq_var': self.xq_var}
                 else:
                     order_field = self.prep_xpath(self.order_by)
                 flowr_order = 'order by %s %s' % (order_field, self.order_mode)
@@ -924,6 +950,11 @@ class Xquery(object):
         self.order_by = field
         self.order_mode = 'ascending' if ascending else 'descending'
 
+    def sort_raw(self, xpath, ascending=True):
+        self.order_by = xpath
+        self.order_by_rawxpath = True  # set flag to indicate no further prep should be done
+        self.order_mode = 'ascending' if ascending else 'descending'
+
     def distinct(self):
         self._distinct = True
 
@@ -967,8 +998,10 @@ class Xquery(object):
         else:
             ft_query_template = 'ft:query(%s, %s)'
 
-        if type == 'contains':
-            filter = 'contains(%s, %s)' % (_xpath, _quote_as_string_literal(value))
+        xq_functions = ['contains']  # TODO:  min, max
+
+        if type in xq_functions:
+            filter = '%s(%s, %s)' % (type, _xpath, _quote_as_string_literal(value))
         if type == 'startswith':
             filter = 'starts-with(%s, %s)' % (_xpath, _quote_as_string_literal(value))
         if type == 'exact':
@@ -996,20 +1029,30 @@ class Xquery(object):
                             xpath + ', but the entire result will be highlighted')
 
         if type == 'in':
-            filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
-                                                      for v in value),
-                                             _xpath)
+            filter = ' or '.join(['%s=%s' % (_xpath, _quote_as_string_literal(v))
+                                 for v in value])
+
+            # filter = 'contains((%s), %s)' % (','.join(_quote_as_string_literal(v)
+            #                                           for v in value),
+            #                                  _xpath)
         # greater than / less than operations
         if type in gtlt_ops:
-            try:
-                val = int(value)
-            except ValueError:
+            # differentiate between actual numbers and numeric strings,
+            # since they will be compared differently
+
+            # if already numeric, use as is without any conversion
+            if isinstance(value, (int, long, float)):
+                val = value
+            # otherwise, treat it as a string
+            else:
                 val = _quote_as_string_literal(value)
             # NOTE: using xq variable because these will be added as where filters
-            filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
+            # filter = '%s/%s %s %s' % (self.xq_var, _xpath, gtlt_ops[type], val)
+            filter = '%s %s %s' % (_xpath, gtlt_ops[type], val)
 
         if filter is not None:
-            if xpath in self.special_fields or type in gtlt_ops:
+            # if xpath in self.special_fields or type in gtlt_ops:
+            if xpath in self.special_fields:
                 # filters on pre-defined fields must occur in 'where' section, after
                 # relevant xquery variable has been defined
                 self.where_filters.append(filter)
