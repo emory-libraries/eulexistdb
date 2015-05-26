@@ -1141,8 +1141,11 @@ class Xquery(object):
         "Generate a top-level return element name based on the xpath."
         if isinstance(parsed_xpath, ast.Step):
             # if this is a step, just use the node test
-            # print '*** node test', parsed_xpath.node_test
-            return 'node'
+            # special cases: node tests that can't be used as return element
+            if str(parsed_xpath.node_test) in ['node()', '*']:
+                return 'node'
+
+            return parsed_xpath.node_test
         elif isinstance(parsed_xpath, ast.BinaryExpression):
             # binary expression like node()|node() - recurse on right hand portion
             return self._return_name_from_xpath(parsed_xpath.right)

@@ -9,7 +9,8 @@ any necessary information about installation or upgrade notes.
 ------
 
 * Basic support for preceding/following/preceding-sibling/following-sibling
-  queries when returning additional fields from a query.
+  queries when returning additional fields from a query via XmlModel.
+* Bugfix: support xml returns for xpaths ending with node() or *
 
 0.19
 ----
