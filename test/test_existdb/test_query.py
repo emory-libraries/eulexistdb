@@ -789,6 +789,17 @@ class XqueryTest(unittest.TestCase):
         xq.return_only({'id': '@id'})
         self.assert_('return <notroot>' in xq._constructReturn())
 
+        # case where node test can't be the return element
+        xq = Xquery(xpath='/foo/bar/node()')
+        xq.return_only({'myid': '@id'})
+        xq_return = xq._constructReturn()
+        self.assert_('return <node>' in xq_return)
+
+        xq = Xquery(xpath='/foo/bar/*')
+        xq.return_only({'myid': '@id'})
+        xq_return = xq._constructReturn()
+        self.assert_('return <node>' in xq_return)
+
     def test_return_only__fulltext_score(self):
         xq = Xquery(xpath='/el')
         xq.xq_var = '$n'
