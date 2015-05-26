@@ -570,11 +570,12 @@ class QuerySet(object):
 
             # if there are additional/partial fields that need to override defined fields,
             # define a new class derived from the XmlObject model and map those fields
-            if self.partial_fields:
-                self._return_type = _create_return_class(self.model, self.partial_fields,
-                        override_xpaths=self.query.get_return_xpaths())
-            elif self.additional_fields:
-                self._return_type = _create_return_class(self.model, self.additional_fields,
+            if self.partial_fields or self.additional_fields:
+                # extra fields should include all partial OR additional fields,
+                # since both options can be used together
+                extra_fields = self.partial_fields.copy()
+                extra_fields.update(self.additional_fields)
+                self._return_type = _create_return_class(self.model, extra_fields,
                         override_xpaths=self.query.get_return_xpaths())
         return self._return_type
 
@@ -639,6 +640,7 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
     subclasses = {}
     subclass_fields = {}
     for name, fields in override_fields.iteritems():
+
         # nested object fields are indicated by basename__subname
         if '__' in name:
             basename, remainder = name.split('__', 1)
@@ -669,6 +671,12 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             # if an override xpath is specified for this field, use that
             if fieldname in override_xpaths:
                 xpath = override_xpaths[fieldname]
+                # special case for following/preceding queries
+                # if an override path contains a sibling query, it won't
+                # work in the result, but the field index should be sufficient.
+                # strip out following, preceding, and following/preceding-siblings
+                pattern = re.compile(r'(following|preceding)(-sibling)?::([^\[]*)(\[\d+\])?$')
+                xpath = pattern.sub(r'\3', xpath)
 
             #TODO: create a clone function for nodefield that takes an xpath
             # (this should make field-type instantiation more reliable and flexible)
@@ -1133,6 +1141,10 @@ class Xquery(object):
         "Generate a top-level return element name based on the xpath."
         if isinstance(parsed_xpath, ast.Step):
             # if this is a step, just use the node test
+            # special cases: node tests that can't be used as return element
+            if str(parsed_xpath.node_test) in ['node()', '*']:
+                return 'node'
+
             return parsed_xpath.node_test
         elif isinstance(parsed_xpath, ast.BinaryExpression):
             # binary expression like node()|node() - recurse on right hand portion

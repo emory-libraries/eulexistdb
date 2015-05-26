@@ -5,6 +5,13 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.19.1
+------
+
+* Basic support for preceding/following/preceding-sibling/following-sibling
+  queries when returning additional fields from a query via XmlModel.
+* Bugfix: support xml returns for xpaths ending with node() or *
+
 0.19
 ----
 * New method for sorting a :class:`eulexistdb.query.QuerySet`
