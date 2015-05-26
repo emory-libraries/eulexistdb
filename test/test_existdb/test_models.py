@@ -39,6 +39,11 @@ class Parting(XmlModel, PartingBase):
     fields.'''
     objects = Manager('/parting')
 
+class Exclamation(XmlModel):
+    text = xmlmap.StringField('text()')
+    next = xmlmap.StringField('following-sibling::*[1]')
+
+    objects = Manager('/parting/exclamation')
 
 class ModelTest(unittest.TestCase):
     COLLECTION = settings.EXISTDB_TEST_COLLECTION
@@ -65,5 +70,10 @@ class ModelTest(unittest.TestCase):
     def test_manager(self):
         partings = Parting.objects.all()
         self.assertEquals(2, partings.count())
+
+    def test_sibling_query(self):
+        # test sibling node access via 'also'
+        exc = Exclamation.objects.filter(text='Au revoir').also('next').get()
+        self.assertEqual('monde', exc.next)
 
 
