@@ -21,17 +21,20 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'localsettings'
 SECRET_KEY = 'notsomuchofasecretafterall'
 
 
-EXISTDB_SERVER_PROTOCOL = "http://"
-EXISTDB_SERVER_HOST     = "localhost:8080/exist"
-# NOTE: test account used for tests that require non-guest access; user should be in eXist DBA group
-EXISTDB_DBA_USER     = "username"
-EXISTDB_DBA_PASSWORD = "pwd"
-# main access - no user/password, guest account
-EXISTDB_SERVER_URL = EXISTDB_SERVER_PROTOCOL + EXISTDB_SERVER_HOST
-# access with the specified user account
-EXISTDB_SERVER_URL_DBA      = EXISTDB_SERVER_PROTOCOL + EXISTDB_DBA_USER + ":" + \
-    EXISTDB_DBA_PASSWORD + "@" + EXISTDB_SERVER_HOST
+EXISTDB_SERVER_URL = 'http://server.domain.com:port/exist/'
+# exist admin account must be have dba privileges
+EXISTDB_SERVER_ADMIN_USER = ""
+EXISTDB_SERVER_ADMIN_PASSWORD = ""
+
+# limited-access test account; will be created by the admin user for
+# testing purposes only
+EXISTDB_SERVER_USER = "eulexistdbtester"
+EXISTDB_SERVER_PASSWORD = "pass1234"
+
 EXISTDB_ROOT_COLLECTION = '/eulexistdb'
-# NOTE: currently, for full-text query tests to work, test collection should be named /test/something
-#       a system collection named /db/system/config/db/test should exist and be writable by guest
-EXISTDB_TEST_COLLECTION = '/test' + EXISTDB_ROOT_COLLECTION
+# test collection will be created and destroyed under base collection
+EXISTDB_TEST_BASECOLLECTION = '/test-eulexistdb'
+EXISTDB_TEST_COLLECTION = EXISTDB_TEST_BASECOLLECTION + EXISTDB_ROOT_COLLECTION
+# user group will be created by admin account for permissions purposes
+EXISTDB_TEST_GROUP = 'eulexistdb-test'
+

@@ -16,20 +16,26 @@
 
 import unittest
 from urlparse import urlsplit, urlunsplit
+from django.conf import settings
+from django.test.utils import override_settings
 
 from eulexistdb import db
 
-from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_URL_DBA, \
-    EXISTDB_TEST_COLLECTION
+from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
+    EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION, \
+    EXISTDB_SERVER_ADMIN_USER, EXISTDB_SERVER_ADMIN_PASSWORD
 
 
 class ExistDBTest(unittest.TestCase):
     COLLECTION = EXISTDB_TEST_COLLECTION
 
     def setUp(self):
-        self.db = db.ExistDB(server_url=EXISTDB_SERVER_URL)
+        self.db = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         # separate existdb instance with dba credentials
-        self.db_admin = db.ExistDB(server_url=EXISTDB_SERVER_URL_DBA)
+        self.db_admin = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_ADMIN_USER,
+            password=EXISTDB_SERVER_ADMIN_PASSWORD)
         self.db.createCollection(self.COLLECTION, True)
 
         self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml', True)
@@ -47,28 +53,17 @@ class ExistDBTest(unittest.TestCase):
 
     def test_failed_authentication_from_settings(self):
         """Check that initializing ExistDB with invalid django settings raises exception"""
-        #passwords can be specified in localsettings.py
-        # overwrite (and then restore) to ensure that authentication fails
-        from django.conf import settings
-        server_url = settings.EXISTDB_SERVER_URL
-        try:
+        # passwords can be specified in localsettings.py
+        # test bad credentials to ensure that authentication fails
+        with override_settings(EXISTDB_SERVER_USER='bad_user',
+                               EXISTDB_SERVER_PASSWORD='bad_pass'):
 
-            parts = urlsplit(settings.EXISTDB_SERVER_URL)
-            netloc = 'bad_user:bad_password@' + parts.hostname
-            if parts.port:
-                netloc += ':' + str(parts.port)
-            bad_uri = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-
-            settings.EXISTDB_SERVER_URL = bad_uri
             test_db = db.ExistDB()
             self.assertRaises(db.ExistDBException,
                 test_db.hasCollection, self.COLLECTION)
-        finally:
-            settings.EXISTDB_SERVER_URL = server_url
 
     def test_serverurl_from_djangoconf(self):
         # test constructing url based on multiple possible configurations
-        from django.conf import settings
         if not hasattr(settings, 'EXISTDB_SERVER_USER'):
             settings.EXISTDB_SERVER_USER = 'username'
         if not hasattr(settings, 'EXISTDB_SERVER_PASSWORD'):
@@ -122,7 +117,7 @@ class ExistDBTest(unittest.TestCase):
     def test_describeDocument(self):
         desc = self.db.describeDocument(self.COLLECTION + '/hello.xml')
         self.assertEqual(self.COLLECTION + "/hello.xml", desc['name'])
-        self.assertEqual("text/xml", desc['mime-type'])
+        self.assertEqual("application/xml", desc['mime-type'])
         self.assertEqual("XMLResource", desc['type'])
         self.assert_('owner' in desc)
         self.assert_('group' in desc)
@@ -166,7 +161,7 @@ class ExistDBTest(unittest.TestCase):
             new_collection, 'not-here.xml')
 
         # remove temporary collection where document was moved
-        self.db.removeCollection(new_collection)
+        self.db_admin.removeCollection(new_collection)
 
     def test_hasCollection(self):
         """Check collections can be found in eXist"""
@@ -181,8 +176,9 @@ class ExistDBTest(unittest.TestCase):
 
         self.assertEqual("/db" + self.COLLECTION, info['name'],
             "collection name returned (expected '/db/%s', got '%s'" % (self.COLLECTION, info['name']))
-        self.assertEqual("guest", info['owner'],
-            "collection owner returned (expected 'guest', got %s" % info['owner'])
+        self.assertEqual(EXISTDB_SERVER_USER, info['owner'],
+            "collection owner returned (expected '%s', got %s" % \
+                (EXISTDB_SERVER_USER, info['owner']))
         # untested - group, created, permissions
         self.assertEqual(3, len(info['documents']), "collection has 3 documents (3 test documents loaded)")
         self.assertEqual([], info['collections'], "collection has no subcollections")
@@ -209,7 +205,7 @@ class ExistDBTest(unittest.TestCase):
         """Test removing collections from eXist"""
         #attempt to remove non-existent collection expects ExistDBException
         self.assertRaises(db.ExistDBException,
-            self.db.removeCollection, self.COLLECTION + "/new_collection")
+            self.db.removeCollection, self.COLLECTION + "/newer_collection")
 
         #create collection to test removal
         self.db.createCollection(self.COLLECTION + "/new_collection")
@@ -364,7 +360,7 @@ class ExistDBTest(unittest.TestCase):
             self.COLLECTION, "<collection/>", False)
 
         # clean up
-        self.db.removeCollection(self.db._configCollectionName( self.COLLECTION))
+        self.db_admin.removeCollection(self.db._configCollectionName( self.COLLECTION))
 
     def test_removeCollectionIndex(self):
         """Test removing a collection index config file from the system config collection."""
@@ -388,7 +384,7 @@ class ExistDBTest(unittest.TestCase):
             "config collection should not be removed when it contains documents")
 
         # clean up
-        self.db.removeCollection(self.db._configCollectionName( self.COLLECTION))
+        self.db_admin.removeCollection(self.db._configCollectionName( self.COLLECTION))
 
     def test_hasCollectionIndex(self):
         # ensure no config collection is present
@@ -423,12 +419,16 @@ class ExistDBTest(unittest.TestCase):
     def test_getPermissions(self):
         perms = self.db.getPermissions('/db' + self.COLLECTION + '/hello.xml')
         self.assert_(isinstance(perms, db.ExistPermissions))
-        self.assertEqual('guest', perms.owner)
-        self.assertEqual('guest', perms.group)
-        self.assertEqual(493, perms.permissions)    # FIXME: will this always be true?
+        self.assertEqual(EXISTDB_SERVER_USER, perms.owner)
+        self.assertEqual(EXISTDB_SERVER_USER, perms.group)
+        # self.assertEqual(493, perms.permissions)    # FIXME: will this always be true?
+        self.assertEqual(420, perms.permissions)    # default in exist 2.2
 
     def test_setPermissions(self):
-        self.db.setPermissions('/db' + self.COLLECTION + '/hello.xml', 'other=-update')
+        # documentation still says this syntax is supported:
+        # self.db_admin.setPermissions('/db' + self.COLLECTION + '/hello.xml', 'other=-update')
+        # but it errors with "Unrecognised mode syntax"
+        self.db_admin.setPermissions('/db' + self.COLLECTION + '/hello.xml', 492)
         perms = self.db.getPermissions('/db' + self.COLLECTION + '/hello.xml')
         self.assertEqual(492, perms.permissions)
 

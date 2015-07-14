@@ -24,7 +24,8 @@ from eulexistdb.exceptions import ReturnedMultiple
 from eulexistdb.query import QuerySet
 from eulexistdb.query import Xquery
 from test_existdb.test_db import EXISTDB_SERVER_URL
-from test_existdb.test_db import EXISTDB_TEST_COLLECTION
+from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
+    EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION
 
 
 class QuerySubModel(xmlmap.XmlObject):
@@ -98,12 +99,16 @@ def load_fixtures(db):
 class ExistQueryTest(unittest.TestCase):
 
     def setUp(self):
-        self.db = ExistDB(server_url=EXISTDB_SERVER_URL)
+        self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         load_fixtures(self.db)
         self.qs = QuerySet(using=self.db, xpath='/root', collection=COLLECTION, model=QueryTestModel)
 
     def tearDown(self):
         self.db.removeCollection(COLLECTION)
+        # release any queryset sessions before test user account
+        # is removed in module teardown
+        del self.qs
 
     def test_count(self):
         load_fixtures(self.db)
@@ -544,7 +549,8 @@ class ExistQueryTest__FullText(unittest.TestCase):
     '''
 
     def setUp(self):
-        self.db = ExistDB(server_url=EXISTDB_SERVER_URL)
+        self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         # create index for collection - should be applied to newly loaded files
         self.db.loadCollectionIndex(COLLECTION, self.FIXTURE_INDEX)
 
@@ -770,7 +776,7 @@ class XqueryTest(unittest.TestCase):
         xq = Xquery(xpath='/el')
         xq.add_filter('.', 'contains', 'dog', mode='NOT')
         xq.add_filter('.', 'startswith', 'S', mode='NOT')
-        self.assertEquals('/el[not(contains(., "dog") or starts-with(., "S"))]',
+        self.assertEquals('/el[not(contains(., "dog")) and not(starts-with(., "S"))]',
                           xq.getQuery())
 
     def test_return_only(self):

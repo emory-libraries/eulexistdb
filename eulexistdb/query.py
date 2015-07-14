@@ -837,7 +837,7 @@ class Xquery(object):
             xpath_parts.append('[%s]' % (' or '.join(self.or_filters)))
 
         if self.not_filters:
-            xpath_parts.append('[not(%s)]' % (' or '.join(self.not_filters)))
+            xpath_parts.append('[%s]' % (' and '.join(['not(%s)' % f for f in self.not_filters])))
 
         xpath = ''.join(xpath_parts)
         # add highlighting if requested

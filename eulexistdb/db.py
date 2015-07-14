@@ -110,8 +110,8 @@ def _wrap_xmlrpc_fault(f):
         except socket.timeout as e:
             raise ExistDBTimeout(e)
         except (socket.error, xmlrpclib.Fault, \
-            xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
-                raise ExistDBException(e)
+                xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
+            raise ExistDBException(e)
         # FIXME: could we catch IOerror (connection reset) and try again ?
         # occasionally getting this error (so far exclusively in unit tests)
         # error: [Errno 104] Connection reset by peer
@@ -138,7 +138,8 @@ class ExistDB:
 
     """
 
-    def __init__(self, server_url=None, resultType=None, encoding='UTF-8', verbose=False,
+    def __init__(self, server_url=None, username=None, password=None,
+                 resultType=None, encoding='UTF-8', verbose=False,
                  **kwargs):
         # FIXME: Will encoding ever be anything but UTF-8? Does this really
         #   need to be part of our public interface?
@@ -153,19 +154,21 @@ class ExistDB:
         if 'timeout' in kwargs:
             timeout = kwargs['timeout']
 
+        # add username/password to url if set
+        server_url = self.get_xmlrpc_url(server_url, username, password)
+
         # if server url or timeout are not set, attempt to get from django settings
         if server_url is None or 'timeout' not in kwargs:
             try:
                 from django.conf import settings
                 if server_url is None:
                     server_url = self._serverurl_from_djangoconf()
-                    
+
                 if 'timeout' not in kwargs:
                     timeout = getattr(settings, 'EXISTDB_TIMEOUT', None)
             except ImportError:
                 pass
 
-            
         # if server url is still not set, we have a problem
         if server_url is None:
             raise Exception('Cannot initialize an eXist-db connection without specifying ' +
@@ -209,25 +212,28 @@ class ExistDB:
             # look for username & password
             username = getattr(settings, 'EXISTDB_SERVER_USER', None)
             password = getattr(settings, 'EXISTDB_SERVER_PASSWORD', None)
+            return self.get_xmlrpc_url(exist_url, username, password)
 
-            # if username or password are configured, add them to the url
-            if username or password:
-                # split the url into its component parts
-                urlparts = urlparse.urlsplit(exist_url)
-                # could have both username and password or just a username
-                if username and password:
-                    prefix = '%s:%s' % (username, password)
-                else:
-                    prefix = username
-                # prefix the network location with credentials
-                netloc = '%s@%s' % (prefix, urlparts.netloc)
-                # un-split the url with all the previous parts and modified location
-                exist_url = urlparse.urlunsplit((urlparts.scheme, netloc, urlparts.path,
-                                                urlparts.query, urlparts.fragment))
-
-            return exist_url
         except ImportError:
             pass
+
+    def get_xmlrpc_url(self, exist_url, username=None, password=None):
+        # if username or password are configured, add them to the url
+        if username or password:
+            # split the url into its component parts
+            urlparts = urlparse.urlsplit(exist_url)
+            # could have both username and password or just a username
+            if username and password:
+                prefix = '%s:%s' % (username, password)
+            else:
+                prefix = username
+            # prefix the network location with credentials
+            netloc = '%s@%s' % (prefix, urlparts.netloc)
+            # un-split the url with all the previous parts and modified location
+            exist_url = urlparse.urlunsplit((urlparts.scheme, netloc, urlparts.path,
+                                            urlparts.query, urlparts.fragment))
+
+        return exist_url
 
 
     def getDocument(self, name, **kwargs):
@@ -284,9 +290,10 @@ class ExistDB:
             logger.debug('describeCollection %s' % collection_name)
             self.server.describeCollection(collection_name)
             return True
-        except xmlrpclib.Fault, e:
+        except Exception as e:
+            # now could be generic ProtocolError
             s = "collection " + collection_name + " not found"
-            if (e.faultCode == 0 and s in e.faultString):
+            if hasattr(e, 'faultCode') and (e.faultCode == 0 and s in e.faultString):
                 return False
             else:
                 raise ExistDBException(e)
@@ -351,7 +358,7 @@ class ExistDB:
     @_wrap_xmlrpc_fault
     def load(self, xml, path, overwrite=False):
         """Insert or overwrite a document in the database.
-        
+
         :param xml: string or file object with the document contents
         :param path: destination location in the database
         :param overwrite: True to allow overwriting an existing document
@@ -420,7 +427,7 @@ class ExistDB:
         """Execute an XQuery query, returning a server-provided result
         handle.
 
-        :param xquery: a string XQuery query 
+        :param xquery: a string XQuery query
         :rtype: an integer handle identifying the query result for future calls
 
         """
@@ -489,7 +496,7 @@ class ExistDB:
             defaults to False
         :rtype: the query result item as a string
 
-        """        
+        """
         if highlight:
             # eXist highlight modes: attributes, elements, or both
             # using elements because it seems most reasonable default
@@ -539,13 +546,13 @@ class ExistDB:
 
         :param collection_name: name of the collection to be indexed
         :param index: string or file object with the document contents (as used by :meth:`load`)
-        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)        
+        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)
         :rtype: boolean indicating success
-        
+
         """
         index_collection = self._configCollectionName(collection_name)
         # FIXME: what error handling should be done at this level?
-        
+
         # create config collection if it does not exist
         if not self.hasCollection(index_collection):
             self.createCollection(index_collection)
@@ -557,22 +564,22 @@ class ExistDB:
         """Remove index configuration for the specified collection.
         If index collection has no documents or subcollections after the index
         file is removed, the configuration collection will also be removed.
-        
+
         :param collection: name of the collection with an index to be removed
         :rtype: boolean indicating success
 
         """
         # collection indexes information must be stored under system/config/db/collection_name
         index_collection = self._configCollectionName(collection_name)
-        
+
         # remove collection.xconf in the configuration collection
         self.removeDocument(self._collectionIndexPath(collection_name))
-        
+
         desc = self.getCollectionDescription(index_collection)
         # no documents and no sub-collections - safe to remove index collection
         if desc['collections'] == [] and desc['documents'] == []:
             self.removeCollection(index_collection)
-            
+
         return True
 
     def hasCollectionIndex(self, collection_name):
@@ -581,10 +588,10 @@ class ExistDB:
         Note: according to eXist documentation, index config file does not *have*
         to be named *collection.xconf* for reasons of backward compatibility.
         This function assumes that the recommended naming conventions are followed.
-        
+
         :param collection: name of the collection with an index to be removed
         :rtype: boolean indicating collection index is present
-        
+
         """
         return self.hasCollection(self._configCollectionName(collection_name)) \
             and self.hasDocument(self._collectionIndexPath(collection_name))
@@ -604,6 +611,7 @@ class ExistDB:
         # collection indexes information must be stored under system/config/db/collection_name
         return self._configCollectionName(collection_name) + "/collection.xconf"
 
+
 class ExistPermissions:
     "Permissions for an eXist resource - owner, group, and active permissions."
     def __init__(self, data):
@@ -620,7 +628,7 @@ class ExistPermissions:
 
 class QueryResult(xmlmap.XmlObject):
     """The results of an eXist XQuery query"""
-    
+
     start = xmlmap.IntegerField("@start")
     """The index of the first result returned"""
 
@@ -632,7 +640,7 @@ class QueryResult(xmlmap.XmlObject):
     def count(self):
         """The number of results returned in this chunk"""
         return self._raw_count or 0
-    
+
     _raw_hits = xmlmap.IntegerField("@hits")
     @property
     def hits(self):
@@ -650,7 +658,7 @@ class QueryResult(xmlmap.XmlObject):
     @property
     def show_from(self):
         """The index of first object in this result chunk.
-        
+
         Equivalent to :attr:`start`."""
         return self.start
 
