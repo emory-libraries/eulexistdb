@@ -90,10 +90,10 @@ NUM_FIXTURES = 4
 def load_fixtures(db):
     db.createCollection(COLLECTION, True)
 
-    db.load(FIXTURE_ONE, COLLECTION + '/f1.xml', True)
-    db.load(FIXTURE_TWO, COLLECTION + '/f2.xml', True)
-    db.load(FIXTURE_THREE, COLLECTION + '/f3.xml', True)
-    db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml', True)
+    db.load(FIXTURE_ONE, COLLECTION + '/f1.xml')
+    db.load(FIXTURE_TWO, COLLECTION + '/f2.xml')
+    db.load(FIXTURE_THREE, COLLECTION + '/f3.xml')
+    db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml')
 
 
 class ExistQueryTest(unittest.TestCase):

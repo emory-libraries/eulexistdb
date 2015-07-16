@@ -55,7 +55,7 @@ class ExistDBTest(unittest.TestCase):
         """Check that initializing ExistDB with invalid django settings raises exception"""
         # passwords can be specified in localsettings.py
         # test bad credentials to ensure that authentication fails
-        with override_settings(EXISTDB_SERVER_USER='bad_user',
+        with override_settings(EXISTDB_SERVER_URLEXISTDB_SERVER_USER='bad_user',
                                EXISTDB_SERVER_PASSWORD='bad_pass'):
 
             test_db = db.ExistDB()
@@ -239,7 +239,8 @@ class ExistDBTest(unittest.TestCase):
 
         self.assertFalse(qres.hits, 0)
         self.assertEquals(qres.count, 0)
-        self.assertEquals(qres.start, None)
+        self.assertEquals(qres.start, 1)
+        # NOTE: this is a change from exist 1.4.x, was unset/None previously
 
         self.assertFalse(qres.hasMore())
         self.assertFalse(qres.results)
@@ -355,9 +356,10 @@ class ExistDBTest(unittest.TestCase):
         xml = self.db.getDocument(self.db._collectionIndexPath(self.COLLECTION))
         self.assertEquals(xml, "<collection/>")
 
+        # NOTE: rest api assumes overwrite, so this behavior is different now
         # reload with overwrite disabled - should cause an exception
-        self.assertRaises(db.ExistDBException, self.db.loadCollectionIndex,
-            self.COLLECTION, "<collection/>", False)
+        # self.assertRaises(db.ExistDBException, self.db.loadCollectionIndex,
+        #     self.COLLECTION, "<collection/>", False)
 
         # clean up
         self.db_admin.removeCollection(self.db._configCollectionName( self.COLLECTION))
@@ -367,11 +369,9 @@ class ExistDBTest(unittest.TestCase):
         self.db.loadCollectionIndex(self.COLLECTION, "<collection/>")
 
         self.assertTrue(self.db.removeCollectionIndex(self.COLLECTION))
-        # collection config file should be gone         # FIXME: better way to test missing file?
-        # NOTE: apparently getDocument behaves differently when neither doc nor collection exist (?)
-        #   does not throw an exception when document's collection does not exist
-        self.assertFalse(self.db.getDocument(self.db._collectionIndexPath(self.COLLECTION)),
-            "collection index configuration should not be in eXist")
+        # collection index configuration should not be loaded
+        self.assertRaises(db.ExistDBException, self.db.getDocument,
+            self.db._collectionIndexPath(self.COLLECTION))
         self.assertFalse(self.db.hasCollection(self.db._configCollectionName(self.COLLECTION)),
             "config collection should have been removed from eXist")
 

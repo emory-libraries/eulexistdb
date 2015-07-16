@@ -41,11 +41,11 @@ def setup_module():
         password=EXISTDB_SERVER_ADMIN_PASSWORD)
 
     # create non-admin test account
-    admindb.query('sm:create-group("%s")' % EXISTDB_TEST_GROUP);
-    admindb.query('sm:create-account("%s", "%s", "%s")' % \
-        (EXISTDB_SERVER_USER, EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_GROUP))
+    admindb.create_group(EXISTDB_TEST_GROUP)
+    admindb.create_account(EXISTDB_SERVER_USER, EXISTDB_SERVER_PASSWORD,
+        EXISTDB_TEST_GROUP)
 
-    admindb.createCollection(EXISTDB_TEST_BASECOLLECTION, True)
+    admindb.createCollection('/db' + EXISTDB_TEST_BASECOLLECTION, True)
     # test index config
     test_cfg_collection = '/db/system/config/db/' + EXISTDB_TEST_BASECOLLECTION
     admindb.createCollection(test_cfg_collection, True)
