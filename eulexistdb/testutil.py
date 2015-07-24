@@ -53,10 +53,8 @@ import logging
 from os import path
 import re
 import sys
-import unittest2 as unittest
 
 from django.test import TestCase as DjangoTestCase
-from django.test.simple import DjangoTestSuiteRunner
 from django.conf import settings
 
 from eulexistdb.db import ExistDB, ExistDBException
@@ -195,56 +193,64 @@ class ExistDBTestWrapper(object):
 
 alternate_test_existdb = ExistDBTestWrapper
 
-
-class ExistDBTextTestRunner(unittest.TextTestRunner):
-    '''A :class:`unittest.TextTestRunner` that wraps test execution in a
-    :class:`ExistDBTestWrapper`.'''
-
-    def run(self, test):
-        wrapped_test = alternate_test_existdb.wrap_test(test)
-        return super(ExistDBTextTestRunner, self).run(wrapped_test)
-
-
-class ExistDBTextTestSuiteRunner(DjangoTestSuiteRunner):
-    '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to use
-    :class:`ExistDBTestResult` as the result class.'''
-
-    def run_suite(self, suite, **kwargs):
-        return ExistDBTextTestRunner(verbosity=self.verbosity,
-                                     failfast=self.failfast).run(suite)
-
-
 try:
-    # when xmlrunner is available, define xmltest variants
+    import unittest2
+    from django.test.simple import DjangoTestSuiteRunner
 
-    import xmlrunner
 
-    class ExistDBXmlTestRunner(xmlrunner.XMLTestRunner):
-        '''A :class:`xmlrunner.XMLTestRunner` that wraps test execution in a
+    class ExistDBTextTestRunner(unittest2.TextTestRunner):
+        '''A :class:`unittest.TextTestRunner` that wraps test execution in a
         :class:`ExistDBTestWrapper`.'''
-
-        def __init__(self):
-            verbose = getattr(settings, 'TEST_OUTPUT_VERBOSE', False)
-            descriptions = getattr(settings, 'TEST_OUTPUT_DESCRIPTIONS', False)
-            output = getattr(settings, 'TEST_OUTPUT_DIR', 'test-results')
-
-            super_init = super(ExistDBXmlTestRunner, self).__init__
-            super_init(verbose=verbose, descriptions=descriptions, output=output)
 
         def run(self, test):
             wrapped_test = alternate_test_existdb.wrap_test(test)
-            return super(ExistDBXmlTestRunner, self).run(wrapped_test)
+            return super(ExistDBTextTestRunner, self).run(wrapped_test)
 
-    class ExistDBXmlTestSuiteRunner(ExistDBTextTestSuiteRunner):
-        '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to
-        setup and teardown a temporary eXist test environment and export
-        test results in XML.'''
+
+    class ExistDBTextTestSuiteRunner(DjangoTestSuiteRunner):
+        '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to use
+        :class:`ExistDBTestResult` as the result class.'''
 
         def run_suite(self, suite, **kwargs):
-            return ExistDBXmlTestRunner().run(suite)
+            return ExistDBTextTestRunner(verbosity=self.verbosity,
+               failfast=self.failfast).run(suite)
+
+    try:
+        # when xmlrunner is available, define xmltest variants
+
+        import xmlrunner
+
+        class ExistDBXmlTestRunner(xmlrunner.XMLTestRunner):
+            '''A :class:`xmlrunner.XMLTestRunner` that wraps test execution in a
+            :class:`ExistDBTestWrapper`.'''
+
+            def __init__(self):
+                verbose = getattr(settings, 'TEST_OUTPUT_VERBOSE', False)
+                descriptions = getattr(settings, 'TEST_OUTPUT_DESCRIPTIONS', False)
+                output = getattr(settings, 'TEST_OUTPUT_DIR', 'test-results')
+
+                super_init = super(ExistDBXmlTestRunner, self).__init__
+                super_init(verbose=verbose, descriptions=descriptions, output=output)
+
+            def run(self, test):
+                wrapped_test = alternate_test_existdb.wrap_test(test)
+                return super(ExistDBXmlTestRunner, self).run(wrapped_test)
+
+        class ExistDBXmlTestSuiteRunner(ExistDBTextTestSuiteRunner):
+            '''Extend :class:`~django.test.simple.DjangoTestSuiteRunner` to
+            setup and teardown a temporary eXist test environment and export
+            test results in XML.'''
+
+            def run_suite(self, suite, **kwargs):
+                return ExistDBXmlTestRunner().run(suite)
+
+    except ImportError:
+        # xmlrunner not available
+        pass
 
 
 except ImportError:
+    # unittest2 or django runner not available
     pass
 
 

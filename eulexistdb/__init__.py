@@ -28,7 +28,7 @@ It contains the following modules:
 
 """
 
-__version_info__ = (0, 19, 1, None)
+__version_info__ = (0, 19, 2, None)
 
 # Dot-connect all but the last. Last is dash-connected if not None.
 __version__ = '.'.join([str(i) for i in __version_info__[:-1]])

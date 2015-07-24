@@ -5,6 +5,11 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.19.2
+------
+
+* Unittest2 and Django test runner are now optional when using testutils.
+
 0.19.1
 ------
 
