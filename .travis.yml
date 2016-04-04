@@ -17,7 +17,7 @@ env:
 #  - EXIST_DB_VERSION=eXist-3.0.RC1
   - EXIST_DB_VERSION=eXist-2.2
 
-before install:
+before_install:
   - export EXIST_DB_FOLDER=${HOME}/exist/${EXIST_DB_VERSION}
   - export JAVA_HOME=/usr/lib/jvm/java-8-oracle
 
@@ -29,6 +29,9 @@ install:
 
 before_script:
   - ci/start-existdb.sh
+
+script:
+  nosetests test/ --with-coverage --cover-package=eulexistdb --cover-xml --with-xunit
 
 after_success:
   - coveralls
