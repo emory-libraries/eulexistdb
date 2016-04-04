@@ -25,7 +25,11 @@ class ExistDBException(Exception):
 
     def message(self):
         "Rough conversion of xmlrpc fault string into something human-readable."
-        orig_except = self.args[0]  # NOTE: should handle if not present
+        try:
+            orig_except = self.args[0]
+        except IndexError:
+            orig_except = ''
+
         if isinstance(orig_except, socket.timeout):
             # socket timeout error text is always "timed out"
             message = 'Request Timed Out'
