@@ -119,7 +119,7 @@ def _wrap_xmlrpc_fault(f):
     return wrapper
 
 
-class ExistDB:
+class ExistDB(object):
     """Connect to an eXist database, and manipulate and query it.
 
     Construction doesn't initiate server communication, only store
@@ -134,7 +134,7 @@ class ExistDB:
                        defaults to "UTF-8"
     :param verbose:    When True, print XML-RPC debugging messages to stdout
     :param timeout: Specify a timeout for xmlrpc connection
-      requests.If not specified, the global default socket timeout
+      requests.  If not specified, the global default socket timeout
       value will be used.
 
     """
@@ -142,9 +142,6 @@ class ExistDB:
     def __init__(self, server_url=None, username=None, password=None,
                  resultType=None, encoding='UTF-8', verbose=False,
                  **kwargs):
-        # FIXME: Will encoding ever be anything but UTF-8? Does this really
-        #   need to be part of our public interface?
-
         self.resultType = resultType or QueryResult
         datetime_opt = {'use_datetime': True}
 
@@ -159,14 +156,13 @@ class ExistDB:
         self.exist_url = server_url
         self.username = username
         self.password = password
-        xmlrpc_url = self.get_xmlrpc_url(self.exist_url, self.username, self.password)
 
         # if server url or timeout are not set, attempt to get from django settings
         if self.exist_url is None or 'timeout' not in kwargs:
             try:
                 from django.conf import settings
                 if self.exist_url is None:
-                    xmlrpc_url = self._serverurl_from_djangoconf()
+                    self.exist_url = self._serverurl_from_djangoconf()
 
                 if 'timeout' not in kwargs:
                     timeout = getattr(settings, 'EXISTDB_TIMEOUT', None)
@@ -174,27 +170,21 @@ class ExistDB:
                 pass
 
         # if server url is still not set, we have a problem
-        if xmlrpc_url is None:
+        if self.exist_url is None:
             raise Exception('Cannot initialize an eXist-db connection without specifying ' +
                             'eXist server url directly or in Django settings as EXISTDB_SERVER_URL')
 
-        # initialize a requests session for REST api calls
+        # initialize a requests session; used for REST api calls
+        # AND for xmlrpc transport
         self.session = requests.Session()
         if self.username is not None and self.password is not None:
             self.session.auth = (self.username, self.password)
 
-        # determine if we need http or https transport
-        # (duplicates some logic in xmlrpclib)
-        type, uri = splittype(xmlrpc_url)
-        if type not in ("http", "https"):
-            raise IOError, "unsupported XML-RPC protocol"
-        if type == 'https':
-            transport = TimeoutSafeTransport(timeout=timeout, **datetime_opt)
-        else:
-            transport = TimeoutTransport(timeout=timeout, **datetime_opt)
+        transport = RequestsTransport(timeout=timeout, session=self.session,
+            url=self.exist_url, **datetime_opt)
 
         self.server = xmlrpclib.ServerProxy(
-                uri="%s/xmlrpc" % xmlrpc_url.rstrip('/'),
+                uri='%s/xmlrpc' % self.exist_url.rstrip('/'),
                 transport=transport,
                 encoding=encoding,
                 verbose=verbose,
@@ -219,35 +209,18 @@ class ExistDB:
             # look for username & password
             self.username = getattr(settings, 'EXISTDB_SERVER_USER', None)
             self.password = getattr(settings, 'EXISTDB_SERVER_PASSWORD', None)
-            return self.get_xmlrpc_url(self.exist_url, self.username, self.password)
+
+            return self.exist_url
 
         except ImportError:
             pass
-
-    def get_xmlrpc_url(self, exist_url, username=None, password=None):
-        # if username or password are configured, add them to the url
-        if username or password:
-            # split the url into its component parts
-            urlparts = urlparse.urlsplit(exist_url)
-            # could have both username and password or just a username
-            if username and password:
-                prefix = '%s:%s' % (username, password)
-            else:
-                prefix = username
-            # prefix the network location with credentials
-            netloc = '%s@%s' % (prefix, urlparts.netloc)
-            # un-split the url with all the previous parts and modified location
-            exist_url = urlparse.urlunsplit((urlparts.scheme, netloc, urlparts.path,
-                                            urlparts.query, urlparts.fragment))
-
-        return exist_url
 
     def restapi_path(self, path):
         # generate rest path to a collection or document
         # FIXME: getting duplicated db path, handle this better
         if path.startswith('/db'):
             path = path[len('/db'):]
-        # make sure ther is a slash between db and requested path
+        # make sure there is a slash between db and requested path
         if not path.startswith('/'):
             path = '/%s' % path
         return '%srest/db%s' % (self.exist_url, path)
@@ -740,44 +713,6 @@ class QueryResult(xmlmap.XmlObject):
         :attr:`start` and containing :attr:`count` members"""
         return self.node.xpath('*')
 
-    # FIXME: Why do we have two properties here with the same value?
-    # start == show_from. We should pick one and deprecate the other.
-    @property
-    def show_from(self):
-        """The index of first object in this result chunk.
-
-        Equivalent to :attr:`start`."""
-        return self.start
-
-    # FIXME: Not sure how we're using this, but it feels wonky. If we're
-    # using it for chunking or paging then we should probably follow the
-    # slice convention of returning the index past the last one. If we're
-    # using it for pretty-printing results ranges then the rVal < 0 branch
-    # sounds like an exception condition that should be handled at a higher
-    # level. Regardless, shouldn't some system invariant handle the rVal >
-    # self.hits branch for us? This whole method just *feels* weird. It
-    # warrants some examination.
-    @property
-    def show_to(self):
-        """The index of last object in this result chunk"""
-        rVal = (self.start - 1) + self.count
-        if rVal > self.hits:
-            #show_to can not exceed total hits
-            return self.hits
-        elif rVal < 0:
-            return 0
-        else:
-            return rVal
-
-    # FIXME: This, too, feels like it checks a number of things that should
-    # probably be system invariants. We should coordinate what this does
-    # with how it's actually used.
-    def hasMore(self):
-        """Are there more matches after this one?"""
-        if not self.hits or not self.start or not self.count:
-            return False
-        return self.hits > (self.start + self.count)
-
 
 class ExistExceptionResponse(xmlmap.XmlObject):
     '''XML exception response returned on an error'''
@@ -789,84 +724,79 @@ class ExistExceptionResponse(xmlmap.XmlObject):
     query = xmlmap.StringField('query')
 
 
-# Custom xmlrpclib Transport classes for configurable timeout
-# Initially adapted from code found here:
-# http://stackoverflow.com/questions/372365/set-timeout-for-xmlrpclib-serverproxy
+# requests-based xmlrpc transport
+# https://gist.github.com/chrisguitarguy/2354951
+class RequestsTransport(xmlrpclib.Transport):
+    """
+    Transport for xmlrpclib that uses Requests instead of httplib.
 
-# NOTE: TimeoutHTTP and TimeoutHTTPS are needed for compatibility with
-# Python 2.6 and earlier (see UGLY HACK ALERT below). They are not used in
-# Python 2.7 and newer.
-class TimeoutHTTP(httplib.HTTP):
-    def __init__(self, host='', port=None, strict=None, timeout=None):
-         if port == 0:
-             port = None
-         self._setup(self._connection_class(host, port, strict, timeout))
+    Additional parameters:
 
-class TimeoutHTTPS(httplib.HTTPS):
-    def __init__(self, host='', port=None, strict=None, timeout=None):
-         if port == 0:
-             port = None
-         self._setup(self._connection_class(host, port, strict, timeout))
+    :param timeout: optional timeout for xmlrpc requests
+    :param session: optional requests session; use a custom session
+        if your xmlrpc server requires authentication
+    :param url: optional xmlrpc url; used to determine if https should
+        be used when making xmlrpc requests
+    """
+    # update user agent to reflect use of requests
+    user_agent = "xmlrpclib.py/%s via requests %s" % (xmlrpclib.__version__,
+        requests.__version__)
 
-class TimeoutTransport(xmlrpclib.Transport):
-    '''Extend the default :class:`xmlrpclib.Transport` to expose a
-    connection timeout parameter.'''
-    # UGLY HACK ALERT. Python 2.6 wants make_connection to return something
-    # that looks like a httplib.HTTP. Python 2.7 wants a
-    # httplib.HTTPConnection. We use an ugly hack (commented below) to
-    # figure out which environment we're running in. _http_connection is
-    # used for 2.7-style connections; _http_connection_compat is used for
-    # 2.6-style.
-    _http_connection = httplib.HTTPConnection
-    _http_connection_compat = TimeoutHTTP
+    # boolean flag to indicate whether https should be used or not
+    use_https = False
 
-    def __init__(self, timeout=None, *args, **kwargs):
+    def __init__(self, timeout=None, session=None, url=None, *args, **kwargs):
         if timeout is None:
             timeout = socket._GLOBAL_DEFAULT_TIMEOUT
         xmlrpclib.Transport.__init__(self, *args, **kwargs)
         self.timeout = timeout
+        # NOTE: assumues that if basic auth is needed, it is set
+        # on the session that is passed in
+        if session:
+            self.session = session
+        else:
+            self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': self.user_agent,
+            'Content-Type': 'application/xml'
+        })
+        # determine whether https is needed based on the url
+        if url is not None:
+            self.use_https = (splittype(url)[0] == 'https')
 
-        # UGLY HACK ALERT. If we're running on Python 2.6 or earlier,
-        # self.make_connection() needs to return an HTTP; newer versions
-        # expect an HTTPConnection. Our strategy is to guess which is
-        # running, and override self.make_connection for older versions.
-        # That check and override happens here.
-        if self._connection_requires_compat():
-            self.make_connection = self._make_connection_compat
-
-    def _connection_requires_compat(self):
-        # UGLY HACK ALERT. Python 2.7 xmlrpclib caches connection objects in
-        # self._connection (and sets self._connection in __init__). Python
-        # 2.6 and earlier has no such cache. Thus, if self._connection
-        # exists, we're running the newer-style, and if it doesn't then
-        # we're running older-style and thus need compatibility mode.
+    def request(self, host, handler, request_body, verbose):
+        """
+        Make an xmlrpc request.
+        """
+        url = self._build_url(host, handler)
         try:
-            self._connection
-            return False
-        except AttributeError:
-            return True
+            resp = self.session.post(url, data=request_body,
+                timeout=self.timeout)
+        except Exception:
+            raise # something went wrong
+        else:
+            try:
+                resp.raise_for_status()
+            except requests.RequestException as err:
+                raise xmlrpclib.ProtocolError(url, resp.status_code,
+                                              str(err), resp.headers)
+            else:
+                return self.parse_response(resp)
 
-    def make_connection(self, host):
-        # This is the make_connection that runs under Python 2.7 and newer.
-        # The code is pulled straight from 2.7 xmlrpclib, except replacing
-        # HTTPConnection with self._http_connection
-        if self._connection and host == self._connection[0]:
-            return self._connection[1]
-        chost, self._extra_headers, x509 = self.get_host_info(host)
-        self._connection = host, self._http_connection(chost, timeout=self.timeout)
-        return self._connection[1]
+    def parse_response(self, resp):
+        """
+        Parse the xmlrpc response.
+        """
+        parser, unmarshaller = self.getparser()
+        parser.feed(resp.text)
+        parser.close()
+        return unmarshaller.close()
 
-    def _make_connection_compat(self, host):
-        # This method runs as make_connection under Python 2.6 and older.
-        # __init__ detects which version we need and pastes this method
-        # directly into self.make_connection if necessary.
-        host, extra_headers, x509 = self.get_host_info(host)
-        return self._http_connection_compat(host, timeout=self.timeout)
-
-
-class TimeoutSafeTransport(TimeoutTransport):
-    '''Extend class:`TimeoutTransport` but use HTTPS connections;
-    timeout-enabled equivalent to :class:`xmlrpclib.SafeTransport`.'''
-    _http_connection = httplib.HTTPSConnection
-    _http_connection_compat = TimeoutHTTPS
+    def _build_url(self, host, handler):
+        """
+        Build a url for our request based on the host, handler and use_http
+        property
+        """
+        scheme = 'https' if self.use_https else 'http'
+        return '%s://%s%s' % (scheme, host, handler)
 

@@ -70,22 +70,21 @@ class ExistDBTest(unittest.TestCase):
             print "DEBUG: setting exist password on settings"
             settings.EXISTDB_SERVER_PASSWORD = 'pass'
 
-        user = settings.EXISTDB_SERVER_USER
-        pwd = settings.EXISTDB_SERVER_PASSWORD
+        # these are irrelevant now, since not included in the url
+        # user = settings.EXISTDB_SERVER_USER
+        # pwd = settings.EXISTDB_SERVER_PASSWORD
         scheme, sep, host = settings.EXISTDB_SERVER_URL.partition('//')
 
-        # with username & password
-        self.assertEqual(scheme + sep + user + ':' + pwd + '@' + host,
-                         self.db._serverurl_from_djangoconf())
+        # username & password NOT included in xmlrpc url
+        self.assertEqual(scheme + sep + host, self.db._serverurl_from_djangoconf())
 
-        # username but no password
+        # username but no password - still NOT included in xmlrpc url
         settings.EXISTDB_SERVER_PASSWORD = None
-        self.assertEqual(scheme + sep + user + '@' + host, self.db._serverurl_from_djangoconf())
+        self.assertEqual(scheme + sep + host, self.db._serverurl_from_djangoconf())
 
         # no credentials
         settings.EXISTDB_SERVER_USER = None
         self.assertEqual(settings.EXISTDB_SERVER_URL, self.db._serverurl_from_djangoconf())
-
 
 
     def test_getDocument(self):
@@ -242,7 +241,6 @@ class ExistDBTest(unittest.TestCase):
         self.assertEquals(qres.start, 1)
         # NOTE: this is a change from exist 1.4.x, was unset/None previously
 
-        self.assertFalse(qres.hasMore())
         self.assertFalse(qres.results)
 
 
@@ -321,25 +319,6 @@ class ExistDBTest(unittest.TestCase):
         self.assertRaises(db.ExistDBException,
                 test_db.hasCollection, self.COLLECTION)
 
-    def test_hasMore(self):
-        """Test hasMore, show_to, and show_from based on numbers in xquery result"""
-        xqry = 'for $x in collection("/db%s")//root/field return $x' % (self.COLLECTION, )
-        qres = self.db.query(xqry, how_many=2, start=1)
-        self.assertTrue(qres.hasMore())
-        self.assertEquals(qres.show_from, 1)
-        self.assertEquals(qres.show_to, 2)
-
-        qres = self.db.query(xqry, how_many=2, start=3)
-        self.assertFalse(qres.hasMore())
-        self.assertEquals(qres.show_from, 3)
-        self.assertEquals(qres.show_to, 4)
-
-        qres = self.db.query(xqry, how_many=2, start=4)
-        self.assertFalse(qres.hasMore())
-        self.assertEquals(qres.show_from, 4)
-        self.assertEquals(qres.show_to, 4)
-
-
     def test_configCollectionName(self):
         self.assertEqual("/db/system/config/db/foo", self.db._configCollectionName("foo"))
         self.assertEqual("/db/system/config/db/foo", self.db._configCollectionName("/foo"))
@@ -362,7 +341,7 @@ class ExistDBTest(unittest.TestCase):
         #     self.COLLECTION, "<collection/>", False)
 
         # clean up
-        self.db_admin.removeCollection(self.db._configCollectionName( self.COLLECTION))
+        self.db_admin.removeCollection(self.db._configCollectionName(self.COLLECTION))
 
     def test_removeCollectionIndex(self):
         """Test removing a collection index config file from the system config collection."""
@@ -384,7 +363,7 @@ class ExistDBTest(unittest.TestCase):
             "config collection should not be removed when it contains documents")
 
         # clean up
-        self.db_admin.removeCollection(self.db._configCollectionName( self.COLLECTION))
+        self.db_admin.removeCollection(self.db._configCollectionName(self.COLLECTION))
 
     def test_hasCollectionIndex(self):
         # ensure no config collection is present
