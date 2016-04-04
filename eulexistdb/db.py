@@ -471,7 +471,7 @@ class ExistDB:
 
         # not sure if any information is available on other error codes
         else:
-            raise exc.ExistDBException
+            raise ExistDBException(response.content)
 
         # xml_s = self.server.query(xquery, how_many, start, kwargs)
 

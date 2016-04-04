@@ -33,6 +33,7 @@ setup(
     license='Apache License, Version 2.0',
     packages=find_packages(),
     install_requires=[
+        'requests',
         'eulxml>=0.18.0',
     ],
     extras_require={
