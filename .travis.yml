@@ -1,0 +1,30 @@
+language: python
+
+python:
+#  - "2.6"
+  - "2.7"
+
+addons:
+  apt:
+    packages:
+      - oracle-java8-installer
+
+# versions of eXist to test against
+env:
+  - EXIST_DB_VERSION=eXist-3.0.RC1
+  - EXIST_DB_VERSION=eXist-2.2
+
+before install:
+  - export EXISTDBFOLDER=${HOME}/exist/${EXISTDBVERSION}
+  - export JAVA_HOME=/usr/lib/jvm/java-8-oracle
+
+install:
+  - ci/setup-existdb.sh
+
+before_script:
+  - ci/start-existdb.sh
+
+
+afterscript:
+  - cd ${EXISTDB_FOLDER}
+  - bin/shutdown.sh
