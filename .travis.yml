@@ -15,7 +15,7 @@ env:
   - EXIST_DB_VERSION=eXist-2.2
 
 before install:
-  - export EXISTDBFOLDER=${HOME}/exist/${EXISTDBVERSION}
+  - export EXISTDBFOLDER=${HOME}/exist/${EXIST_DB_VERSION}
   - export JAVA_HOME=/usr/lib/jvm/java-8-oracle
 
 install:
