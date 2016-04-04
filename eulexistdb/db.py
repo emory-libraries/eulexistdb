@@ -108,7 +108,7 @@ def _wrap_xmlrpc_fault(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except socket.timeout as e:
+        except (socket.timeout, requests.exceptions.ReadTimeout) as e:
             raise ExistDBTimeout(e)
         except (socket.error, xmlrpclib.Fault, \
                 xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
@@ -223,7 +223,7 @@ class ExistDB(object):
         # make sure there is a slash between db and requested path
         if not path.startswith('/'):
             path = '/%s' % path
-        return '%srest/db%s' % (self.exist_url, path)
+        return '%s/rest/db%s' % (self.exist_url.rstrip('/'), path)
 
 
     def getDocument(self, name):
