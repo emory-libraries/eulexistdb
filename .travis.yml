@@ -1,5 +1,8 @@
 language: python
 
+# ensure use container-based infrastructure for caching
+sudo: false
+
 python:
 #  - "2.6"
   - "2.7"
@@ -15,16 +18,27 @@ env:
   - EXIST_DB_VERSION=eXist-2.2
 
 before install:
-  - export EXISTDBFOLDER=${HOME}/exist/${EXIST_DB_VERSION}
+  - export EXIST_DB_FOLDER=${HOME}/exist/${EXIST_DB_VERSION}
   - export JAVA_HOME=/usr/lib/jvm/java-8-oracle
 
 install:
   - ci/setup-existdb.sh
+  - pip install -e .
+  - pip install ".[dev]"
+  - pip install coveralls
 
 before_script:
   - ci/start-existdb.sh
 
-
-afterscript:
-  - cd ${EXISTDB_FOLDER}
+after_success:
+  - coveralls
+  - cd ${EXIST_DB_FOLDER}
   - bin/shutdown.sh
+
+
+# caching exist to speed up tests
+before_cache:
+  - ci/teardown-db.sh
+cache:
+  directories:
+    - ${HOME}/exist
