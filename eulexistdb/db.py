@@ -371,10 +371,12 @@ class ExistDB(object):
             # response is HTML, not xml...
             # could use regex or beautifulsoup to pull out the error
             raise ExistDBException
-        return response.status_code == requests.codes.created
 
-        # old xmlrpc call
-        # return self.server.parse(xml, path, int(overwrite))
+        # expect 201 created for new documents, 200 for
+        # successful update of an existing document
+        return response.status_code == requests.codes.created or \
+            (overwrite and response.status_code == requests.codes.ok)
+
 
     @_wrap_xmlrpc_fault
     def removeDocument(self, name):
@@ -404,36 +406,43 @@ class ExistDB(object):
         return True
 
     @_wrap_xmlrpc_fault
-    def query(self, xquery, start=1, how_many=10, **kwargs):
+    def query(self, xquery=None, start=1, how_many=10, cache=False, session=None,
+        release=None):
         """Execute an XQuery query, returning the results directly.
 
         :param xquery: a string XQuery query
         :param start: first index to return (1-based)
         :param how_many: maximum number of items to return
+        :param cache: boolean, to cache a query and return a session id
+        :param session: session id, to retrieve a cached session
+        :param release: session id to bereleased
         :rtype: the resultType specified at the creation of this ExistDB;
                 defaults to :class:`QueryResult`.
 
         """
-        logger.debug('query how_many=%d start=%d args=%s\n%s' % (how_many, start, kwargs, xquery))
+
         # xml_s = self.server.query(xquery, how_many, start, kwargs)
         params = {
-            '_query': xquery,
             '_howmany': how_many,
             '_start': start,
-            # kwargs??
         }
-        # if xquery is not None:
-        #     params['_query'] = xquery
-        # # if cache:
-        # #     params['_cache'] = 'yes'
-        # if release is not None:
-        #     params['_release'] = release
-        # if session is not None:
-        #     params['_session'] = session
+        if xquery is not None:
+            params['_query'] = xquery
+        if cache:
+            params['_cache'] = 'yes'
+        if release is not None:
+            params['_release'] = release
+        if session is not None:
+            params['_session'] = session
+
+        opts = ' '.join('%s=%s' % (key.lstrip('_'), val)
+                        for key, val in params.iteritems() if key != '_query')
+        logger.debug('query %s\n%s' % (opts, xquery))
 
         response = self.session.get(self.restapi_path(''), params=params)
 
         if response.status_code == requests.codes.ok:
+            # NOTE: successful release doesn't return any content
             # TODO: test unicode handling
             return xmlmap.load_xmlobject_from_string(response.content, self.resultType)
 
