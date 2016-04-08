@@ -56,7 +56,7 @@ import sys
 
 
 from django.test import TestCase as DjangoTestCase
-from django.test.simple import DjangoTestSuiteRunner
+
 from django.conf import settings
 
 from eulexistdb.db import ExistDB, ExistDBException
@@ -197,6 +197,7 @@ alternate_test_existdb = ExistDBTestWrapper
 
 try:
     import unittest2 as unittest
+    from django.test.simple import DjangoTestSuiteRunner
 
     class ExistDBTextTestRunner(unittest.TextTestRunner):
         '''A :class:`unittest.TextTestRunner` that wraps test execution in a
