@@ -407,15 +407,15 @@ class ExistDB(object):
 
     @_wrap_xmlrpc_fault
     def query(self, xquery=None, start=1, how_many=10, cache=False, session=None,
-        release=None):
+        release=None, result_type=None):
         """Execute an XQuery query, returning the results directly.
 
         :param xquery: a string XQuery query
         :param start: first index to return (1-based)
         :param how_many: maximum number of items to return
-        :param cache: boolean, to cache a query and return a session id
-        :param session: session id, to retrieve a cached session
-        :param release: session id to bereleased
+        :param cache: boolean, to cache a query and return a session id (optional)
+        :param session: session id, to retrieve a cached session (optional)
+        :param release: session id to be released (optional)
         :rtype: the resultType specified at the creation of this ExistDB;
                 defaults to :class:`QueryResult`.
 
@@ -434,6 +434,8 @@ class ExistDB(object):
             params['_release'] = release
         if session is not None:
             params['_session'] = session
+        if result_type is None:
+            result_type = self.resultType
 
         opts = ' '.join('%s=%s' % (key.lstrip('_'), val)
                         for key, val in params.iteritems() if key != '_query')
@@ -442,9 +444,12 @@ class ExistDB(object):
         response = self.session.get(self.restapi_path(''), params=params)
 
         if response.status_code == requests.codes.ok:
-            # NOTE: successful release doesn't return any content
+            # successful release doesn't return any content
+            if release is not None:
+                return True  # successfully released
+
             # TODO: test unicode handling
-            return xmlmap.load_xmlobject_from_string(response.content, self.resultType)
+            return xmlmap.load_xmlobject_from_string(response.content, result_type)
 
         # 400 bad request returns an xml error we can parse
         elif response.status_code == requests.codes.bad_request:
@@ -703,6 +708,9 @@ class QueryResult(xmlmap.XmlObject):
 
     values = xmlmap.StringListField("exist:value")
     "Generic value (*exist:value*) returned from an exist xquery"
+
+    session = xmlmap.IntegerField("@exist:session")
+    "Session id, when a query is requested to be cached"
 
     _raw_count = xmlmap.IntegerField("@count|@exist:count")
     @property

@@ -134,6 +134,7 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_(isinstance(slice[0], QueryTestModel))
         self.assertEqual(2, slice.count())
         self.assertEqual(2, len(slice))
+
         self.assertEqual('abc', slice[0].id)
         self.assertEqual('def', slice[1].id)
         self.assertRaises(IndexError, slice.__getitem__, 2)

@@ -1,4 +1,5 @@
 # file test_existdb/test_db.py
+# -*- coding: UTF-8 -*-
 #
 #   Copyright 2011 Emory University Libraries
 #
@@ -43,7 +44,7 @@ class ExistDBTest(unittest.TestCase):
         xml = '<root><element name="one">One</element><element name="two">Two</element><element name="two">Three</element></root>'
         self.db.load(xml, self.COLLECTION + '/xqry_test.xml', True)
 
-        xml = '<root><field name="one">One</field><field name="two">Two</field><field name="three">Three</field><field name="four">Four</field></root>'
+        xml = '<root><field name="one">One</field><field name="two">Two</field><field name="three">Three</field><field name="four">Four</field><unicode> ϔ ϕ ϖ Ϛ Ϝ Ϟ Ϡ Ϣ ڡ ڢ ڣ ڤ ༀ </unicode></root>'
         self.db.load(xml, self.COLLECTION + '/xqry_test2.xml', True)
 
     def tearDown(self):
@@ -220,6 +221,17 @@ class ExistDBTest(unittest.TestCase):
 
         self.assertEquals(qres.results[0].xpath('string()'), 'Two')
         self.assertEquals(qres.results[1].xpath('string()'), 'Three')
+
+        # retrieve unicode content unchanged
+        xqry = 'collection("/db%s")//root[unicode]' % (self.COLLECTION, )
+        qres = self.db.query(xqry)
+        unicode_str = u' ϔ ϕ ϖ Ϛ Ϝ Ϟ Ϡ Ϣ ڡ ڢ ڣ ڤ ༀ '
+        self.assertEquals(qres.results[0].xpath('unicode/text()')[0],
+            unicode_str)
+        # query on unicode does not currently return results
+        # xqry = u'collection("/db%s")//root[contains(unicode, "%s")]' % (self.COLLECTION, unicode_str)
+        # qres = self.db.query(xqry)
+        # self.assertEquals(qres.hits, 1)
 
     def test_query_bad_xqry(self):
         """Check that an invalid xquery raises an exception"""
