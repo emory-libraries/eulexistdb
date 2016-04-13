@@ -67,6 +67,7 @@ class ModelTest(unittest.TestCase):
 
     def tearDown(self):
         self.db.removeCollection(self.COLLECTION)
+        self.db.session.close()
 
         settings.EXISTDB_ROOT_COLLECTION = self._root_collection
 

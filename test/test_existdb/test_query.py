@@ -106,6 +106,7 @@ class ExistQueryTest(unittest.TestCase):
 
     def tearDown(self):
         self.db.removeCollection(COLLECTION)
+        self.db.session.close()
         # release any queryset sessions before test user account
         # is removed in module teardown
         del self.qs
