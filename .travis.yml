@@ -14,7 +14,7 @@ addons:
 
 # versions of eXist to test against
 env:
-#  - EXIST_DB_VERSION=eXist-3.0.RC1
+ - EXIST_DB_VERSION=eXist-3.0.RC1
   - EXIST_DB_VERSION=eXist-2.2
 
 before_install:
