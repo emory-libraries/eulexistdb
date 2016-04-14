@@ -38,9 +38,8 @@ from lxml.builder import ElementMaker
 import re
 from types import BooleanType
 
+from eulxml import xmlmap
 from eulxml.xmlmap import load_xmlobject_from_string
-from eulxml.xmlmap.fields import IntegerField, StringField, DateTimeField, \
-    NodeField, NodeListField, StringListField
 from eulxml.xmlmap.core import XmlObjectType
 from eulxml.xpath import ast, parse, serialize
 from eulexistdb import db
@@ -620,14 +619,14 @@ class QuerySet(object):
             # distinct values returns content, not nodes; string is
             # probably reasonable here (although possibly unexpected results if
             # querying for distinct numerical values)
-            fields['items'] = StringListField('*')
+            fields['items'] = xmlmap.StringListField('*')
         else:
             xpath = '*'
             if self.additional_fields:
                 # instead of root element, use first child node to xmlobject
                 # so additional fields can be referenced
                 xpath = '*/*[1]'
-            fields['items'] = NodeListField(xpath, self.return_type)
+            fields['items'] = xmlmap.NodeListField(xpath, self.return_type)
         return XmlObjectType(classname, (db.QueryResult,), fields)
 
 
@@ -705,11 +704,11 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             # field with the same type as the original model field, but with xpath of the variable
             # name, to match how additional field results are constructed by Xquery object
             if name == 'last_modified':     # special case field
-                field_type = DateTimeField
+                field_type = xmlmap.DateTimeField
             elif name == 'match_count':
-                    field_type = IntegerField
+                    field_type = xmlmap.IntegerField
             elif fields is None or isinstance(fields, basestring):
-                field_type = StringField    # handle special cases like fulltext score
+                field_type = xmlmap.StringField    # handle special cases like fulltext score
             else:
                 field_type = type(fields[-1])
 
@@ -730,9 +729,10 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
                 pattern = re.compile(r'(following|preceding)(-sibling)?::([^\[]*)(\[\d+\])?$')
                 xpath = pattern.sub(r'\3', xpath)
 
-            #TODO: create a clone function for nodefield that takes an xpath
+            # TODO: create a clone function for nodefield that takes an xpath
             # (this should make field-type instantiation more reliable and flexible)
-            if isinstance(fields[-1], NodeField) or isinstance(fields[-1], NodeListField):
+            if isinstance(fields[-1], xmlmap.NodeField) or \
+                isinstance(fields[-1], xmlmap.NodeListField):
                 class_fields[name] = field_type(xpath, fields[-1]._get_node_class())
             else:
                 class_fields[name] = field_type(xpath)
@@ -759,6 +759,10 @@ def escape_string(s):
 
 
 def _quote_as_string_literal(s):
+    # special case: do nothing to queries constructed using
+    # XmlQuery class
+    if (isinstance(s, XmlQuery)):
+        return s
     return '"' + escape_string(s) + '"'
 
 
@@ -1382,6 +1386,32 @@ class Xquery(object):
                 xpaths[name] = prefix + self.return_xpaths[i]
                 i += 1
         return xpaths
+
+
+class XmlQuery(xmlmap.XmlObject):
+    ''':class:`~eulxml.xmlmap.XmlObject` class to allow describing
+    `queries in xml <http://exist-db.org/exist/apps/doc/lucene.xml?q=query&field=all&id=D2.2.5.9#D2.2.5.9>`_.
+    '''
+    ROOT_NAME = 'query'
+    #: single search term
+    term = xmlmap.StringField('term')
+    #: phrase search
+    phrase = xmlmap.StringField('phrase')
+    #: near
+    near = xmlmap.StringField('near')
+    #: unordered near
+    near_unorderted = xmlmap.StringField('near[@ordered = "no"]')
+
+    # also available
+    # <bool><term>nation</term><term>miserable</term></bool>
+    # <bool><term>nation</term><wildcard>miser*</wildcard></bool>
+    # <bool><term>nation</term><regex>miser.*</regex></bool>
+    # <bool><term occur="must">boil</term><term occur="should">bubble</term
+
+    def __unicode__(self):
+        # serialize unquoted xml for use in an exist full-text xquery
+        return self.serialize()
+
 
 # some helpers for handling '__'-separated field names:
 

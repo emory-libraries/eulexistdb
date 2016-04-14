@@ -21,8 +21,7 @@ from eulxml import xmlmap
 from eulexistdb.db import ExistDB
 from eulexistdb.exceptions import DoesNotExist
 from eulexistdb.exceptions import ReturnedMultiple
-from eulexistdb.query import QuerySet
-from eulexistdb.query import Xquery
+from eulexistdb.query import QuerySet, Xquery, XmlQuery
 from test_existdb.test_db import EXISTDB_SERVER_URL
 from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
     EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION
@@ -106,7 +105,6 @@ class ExistQueryTest(unittest.TestCase):
 
     def tearDown(self):
         self.db.removeCollection(COLLECTION)
-        self.db.session.close()
         # release any queryset sessions before test user account
         # is removed in module teardown
         del self.qs
@@ -171,6 +169,14 @@ class ExistQueryTest(unittest.TestCase):
                          % self.qs.count())
         self.assertEqual("one", fqs[0].name, "name matches filter")
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
+
+    def test_filter_xmlquery(self):
+        fqs = self.qs.filter(name=XmlQuery(term="one"))
+        self.assertEqual(1, fqs.count(),
+            "count returns 1 when filtered on name = <query><term>one</term></query> (got %s)"
+             % self.qs.count())
+        self.assertEqual("one", fqs[0].name, "name matches filter")
+
 
     def test_filter_field_xpath(self):
         fqs = self.qs.filter(id="abc")
