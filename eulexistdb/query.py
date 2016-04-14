@@ -910,7 +910,7 @@ class Xquery(object):
 
         # requires FLOWR instead of just XQuery  (sort, customized return, etc.)
         if self.order_by or self.return_fields or self.additional_return_fields \
-            or self.where_filters or (self.ft_query and self.fulltext_options):
+           or self.where_filters or (self.ft_query and self.fulltext_options):
 
             # some let statements must come at the beginning of a FLOWR query
             if self.ft_query and self.fulltext_options:
@@ -979,7 +979,10 @@ class Xquery(object):
                                                 flowr_return] if part)     # don't generate blank lines in xqueries
         else:
             # if FLOWR is not required, just use plain xpath
-            if isinstance(self.highlight, BooleanType) and self.highlight:
+
+            # if highlighting is requested (boolean value OR search term)
+            # enable it here by wrapping around the entire xpath
+            if self.highlight:
                 xpath = 'util:expand(%s)' % xpath
 
             query = xpath
