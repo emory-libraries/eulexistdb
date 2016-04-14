@@ -42,3 +42,5 @@ EXISTDB_TEST_COLLECTION = EXISTDB_TEST_BASECOLLECTION + EXISTDB_ROOT_COLLECTION
 # user group will be created by admin account for permissions purposes
 EXISTDB_TEST_GROUP = 'eulexistdb-test'
 
+# for travis-ci, disable sessions since jetty exist doesn't support them
+EXISTDB_SESSION_KEEP_ALIVE = False

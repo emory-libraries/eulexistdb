@@ -136,12 +136,15 @@ class ExistDB(object):
     :param timeout: Specify a timeout for xmlrpc connection
       requests.  If not specified, the global default socket timeout
       value will be used.
-
+    :param keep_alive: Optional parameter, to disable requests built-in
+      session handling;  can also be configured in django settings
+      with EXISTDB_SESSION_KEEP_ALIVE
     """
 
     def __init__(self, server_url=None, username=None, password=None,
                  resultType=None, encoding='UTF-8', verbose=False,
-                 **kwargs):
+                 keep_alive=None, **kwargs):
+
         self.resultType = resultType or QueryResult
         datetime_opt = {'use_datetime': True}
 
@@ -179,9 +182,14 @@ class ExistDB(object):
         self.session = requests.Session()
         if self.username is not None and self.password is not None:
             self.session.auth = (self.username, self.password)
+        # if a keep-alive option is specified, configure the session
+        if keep_alive is None:
+            keep_alive = getattr(settings, 'EXISTDB_SESSION_KEEP_ALIVE', None)
+        if keep_alive is not None:
+            self.session.keep_alive = keep_alive
 
         transport = RequestsTransport(timeout=timeout, session=self.session,
-            url=self.exist_url, **datetime_opt)
+                                      url=self.exist_url, **datetime_opt)
 
         self.server = xmlrpclib.ServerProxy(
                 uri='%s/xmlrpc' % self.exist_url.rstrip('/'),
