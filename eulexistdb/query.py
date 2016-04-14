@@ -512,13 +512,15 @@ class QuerySet(object):
 
         fqs = self.filter(**kwargs)
         if fqs.count() == 1:
+            # use regular get item logic to retrieve the first (only) item
             obj = fqs[0]
             if self.model is not None and not self.query._distinct:
                 # when single object object is deleted, release this query set
                 setattr(obj, '__del__', self._release_query_result)
 
-                # make queryTime method available on the a single item
-                setattr(obj, 'queryTime', self.queryTime)
+            # make queryTime method available on the single item
+            setattr(obj, 'queryTime', self.queryTime)
+
             return obj
         # NOTE: behaves like django - throws a DoesNotExist or a MultipleObjectsReturned
         elif fqs.count() == 0:
