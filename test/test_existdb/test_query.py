@@ -725,7 +725,8 @@ class XqueryTest(unittest.TestCase):
     def test_filters_highlight(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('.', 'highlight', 'dog star')
-        self.assertEquals('(/el[ft:query(., "dog star")]|/el)', xq.getQuery())
+        self.assertEquals('util:expand((/el[ft:query(., "dog star")]|/el))',
+            xq.getQuery())
 
     def test_filter_escaping(self):
         xq = Xquery(xpath='/el')
