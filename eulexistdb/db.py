@@ -243,7 +243,7 @@ class ExistDB(object):
         """
         # REST api; need an error wrapper?
         logger.debug('getDocument %s' % self.restapi_path(name))
-        response = self.session.get(self.restapi_path(name))
+        response = self.session.get(self.restapi_path(name), stream=False)
         if response.status_code == requests.codes.ok:
             return response.content
         if response.status_code == requests.codes.not_found:
@@ -374,7 +374,7 @@ class ExistDB(object):
 
         logger.debug('parse %s overwrite=%s' % (path, overwrite))
         # NOTE: overwrite is assumed by REST
-        response = self.session.put(self.restapi_path(path), xml)
+        response = self.session.put(self.restapi_path(path), xml, stream=False)
         if response.status_code == requests.codes.bad_request:
             # response is HTML, not xml...
             # could use regex or beautifulsoup to pull out the error
@@ -449,7 +449,7 @@ class ExistDB(object):
                         for key, val in params.iteritems() if key != '_query')
         logger.debug('query %s\n%s' % (opts, xquery))
 
-        response = self.session.get(self.restapi_path(''), params=params)
+        response = self.session.get(self.restapi_path(''), params=params, stream=False)
 
         if response.status_code == requests.codes.ok:
             # successful release doesn't return any content
@@ -785,6 +785,8 @@ class RequestsTransport(xmlrpclib.Transport):
             'User-Agent': self.user_agent,
             'Content-Type': 'application/xml'
         })
+
+
         # determine whether https is needed based on the url
         if url is not None:
             self.use_https = (splittype(url)[0] == 'https')
