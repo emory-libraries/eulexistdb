@@ -1,15 +1,23 @@
-try:
-    from debug_toolbar.panels import Panel
-except ImportError:
-    Panel = None
+'''
+Panel for use with
+`django-debug-toolbar <https://django-debug-toolbar.readthedocs.org/>`_.
+
+To install, add:
+
+    'eulexistdb.debug_panel.ExistDBPanel',
+
+to your configured **DEBUG_TOOLBAR_PANELS**.
+
+Reports on the Xqueries run to generate a page, including time to run
+the query, arguments passed, and response returned.
+'''
 
 import time
 from django.dispatch import Signal
-from django.template.loader import render_to_string
+from debug_toolbar.panels import Panel
 
 import eulexistdb
 from eulexistdb import db
-
 
 # implementation based on django-debug-toolbar cache panel
 

@@ -44,7 +44,8 @@ setup(
             'coverage',
             'Django',
             'unittest2',  # optional testrunner in testutil
-            'tox'
+            'tox',
+            'django-debug-toolbar',
         ]
     },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
