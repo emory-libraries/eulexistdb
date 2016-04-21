@@ -88,6 +88,8 @@ class QuerySet(object):
     # pre-compile regular expression for pulling sort flags off beginning of sort field
     _sort_field_re = re.compile(r'^(?P<flags>[~-]*)(?P<field>.*)$')
 
+    default_chunk_size = 100
+
     def __init__(self, model=None, xpath=None, using=None, collection=None,
                 xquery=None, fulltext_options={}):
         self.model = model
@@ -121,7 +123,8 @@ class QuerySet(object):
 
     def _release_query_result(self):
         # tell eXist we are done with this result set
-        self._db.releaseQueryResult(self._result_id)
+        self._db.query(release=self._result_id)
+        self._result_id = None
 
     @property
     def result_id(self):
@@ -140,16 +143,21 @@ class QuerySet(object):
             return self._stop - self._start
 
         if self._count is None:
-            self._count = self._db.getHits(self.result_id)
+            self._runQuery()
+            # self._count = self._db.getHits(self.result_id)
 
         return self._count - self._start
 
-    def queryTime(self):
-        """Return the time (in milliseconds) it took for eXist to run the
-        query, running the query first if it has not yet executed."""
-        # FIXME: should summary be cached ?
-        summary = self._db.querySummary(self.result_id)
-        return summary['queryTime']
+    # NOTE: for now queryTime is only available in xmlrpc, not REST api;
+    # but future versions of eXist may include it as an attribute on
+    # the exist result
+    #
+    # def queryTime(self):
+    #     """Return the time (in milliseconds) it took for eXist to run the
+    #     query, running the query first if it has not yet executed."""
+    #     # FIXME: should summary be cached ?
+    #     summary = self._db.querySummary(self.result_id)
+    #     return summary['queryTime']
 
     def _getCopy(self):
         """Get a clone of the current QuerySet for modification via
@@ -518,8 +526,9 @@ class QuerySet(object):
                 # when single object object is deleted, release this query set
                 setattr(obj, '__del__', self._release_query_result)
 
+            # disabled for now
             # make queryTime method available on the single item
-            setattr(obj, 'queryTime', self.queryTime)
+            # setattr(obj, 'queryTime', self.queryTime)
 
             return obj
         # NOTE: behaves like django - throws a DoesNotExist or a MultipleObjectsReturned
@@ -558,19 +567,14 @@ class QuerySet(object):
 
         # retrieve results in a chunk and cache them for individual item access
         if not self._result_cache:
-            max_items = self.count()
+            max_items = self.default_chunk_size
             if self._stop is not None:
                 max_items = self._stop - self._start + 1
-            self._runQuery(self._start, max_items=0)
-            q_result = self._db.query(self.query.getQuery(), self._start + 1,
-                how_many=max_items, session=self.result_id,
-                 result_type=self.query_result_type)
 
-            # create a dictionary keyed on item index, starting with current start value
-            self._result_cache = dict(enumerate(q_result.items, start=self._start))
+            self._runQuery(self._start + 1, max_items=max_items)
 
         # if for some reason the requested item is not available
-        # retrieve it individually (should not generally be used)
+        # retrieve it individually (this should not generally be used)
         if i not in self._result_cache:
             # if the requested item has not yet been retrieved, get it from eXist
             item = self._db.retrieve(self.result_id, i, highlight=self._highlight_matches)
@@ -578,8 +582,9 @@ class QuerySet(object):
                 self._result_cache[i + self._start] = item.data
             else:
                 obj = self._init_item(item.data)
+                # querytime disabled for now
                 # make queryTime method available when retrieving a single item
-                setattr(obj, 'queryTime', self.queryTime)
+                # setattr(obj, 'queryTime', self.queryTime)
                 self._result_cache[i + self._start] = obj
 
         return self._result_cache[i]
@@ -653,11 +658,37 @@ class QuerySet(object):
         # in django, calling len() populates the cache...
         return self.count()
 
-    def _runQuery(self, start=1, max_items=0):
+    def _runQuery(self, start=None, max_items=None):
         """Execute the currently configured query."""
-        if self._result_id is not None:
-            self._db.releaseQueryResult(self._result_id)
-        self._result_id = self._db.executeQuery(self.query.getQuery())
+        if max_items is None:
+            max_items = self.default_chunk_size
+        # exist start begins at 1, not 0
+        if start is None:
+            start = self._start + 1
+
+        # if we don't yet have a session, request one; if we do, use it
+        session_opts = {}
+        if self._result_id is None:
+            session_opts['cache'] = True
+        else:
+            session_opts['session'] = self._result_id
+
+        result = self._db.query(self.query.getQuery(), start,
+                                how_many=max_items,
+                                result_type=self.query_result_type,
+                                **session_opts)
+
+        # store the session id if a new one was requested
+        if self._result_id is None:
+            self._result_id = result.session
+        # store total count for the query
+        self._count = result.hits
+
+        # if items were retrieved, cache them
+        if max_items != 0:
+            self._result_cache = dict(enumerate(result.items,
+                                                start=self._start))
+        return result
 
     def getDocument(self, docname):
         """Get a single document from the server by filename."""
