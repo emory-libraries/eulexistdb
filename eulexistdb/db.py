@@ -447,7 +447,11 @@ class ExistDB(object):
 
         opts = ' '.join('%s=%s' % (key.lstrip('_'), val)
                         for key, val in params.iteritems() if key != '_query')
-        logger.debug('query %s\n%s' % (opts, xquery))
+        if xquery:
+            debug_query = '\n%s' % xquery
+        else:
+            debug_query = ''
+        logger.debug('query %s%s' % (opts, debug_query))
 
         response = self.session.get(self.restapi_path(''), params=params, stream=False)
 
