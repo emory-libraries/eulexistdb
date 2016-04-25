@@ -18,6 +18,8 @@ any necessary information about installation or upgrade notes.
 * Now uses `requests <http://docs.python-requests.org/>` for REST API
   access and as XML-RPC transport for improved handling and connection
   pooling.
+* New custom django-debug-toolbar panel to view existdb xqueries
+  used to generate a django page.
 
 0.19.2
 ------
