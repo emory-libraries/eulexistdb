@@ -14,25 +14,25 @@ EULexistdb
     :alt: PyPI downloads
 
 **documentation**
-  .. image:: https://readthedocs.org/projects/eulexistdb/badge/?version=develop
-    :target: http://eulexistdb.readthedocs.org/en/latest/?badge=develop
+  .. image:: https://readthedocs.org/projects/eulexistdb/badge/?version=stable
+    :target: http://eulexistdb.readthedocs.org/en/latest/?badge=stable
     :alt: Documentation Status
 
 **code**
-  .. image:: https://travis-ci.org/emory-libraries/eulexistdb.svg?branch=develop
+  .. image:: https://travis-ci.org/emory-libraries/eulexistdb.svg?branch=master
     :target: https://travis-ci.org/emory-libraries/eulexistdb
     :alt: travis-ci build
 
-  .. image:: https://coveralls.io/repos/github/emory-libraries/eulexistdb/badge.svg?branch=develop
-    :target: https://coveralls.io/github/emory-libraries/eulexistdb?branch=develop
+  .. image:: https://coveralls.io/repos/github/emory-libraries/eulexistdb/badge.svg?branch=master
+    :target: https://coveralls.io/github/emory-libraries/eulexistdb?branch=master
     :alt: Code Coverage
 
   .. image:: https://codeclimate.com/github/emory-libraries/eulexistdb/badges/gpa.svg
     :target: https://codeclimate.com/github/emory-libraries/eulexistdb
     :alt: Code Climate
 
-  .. image:: https://requires.io/github/emory-libraries/eulexistdb/requirements.svg?branch=develop
-    :target: https://requires.io/github/emory-libraries/eulexistdb/requirements/?branch=develop
+  .. image:: https://requires.io/github/emory-libraries/eulexistdb/requirements.svg?branch=master
+    :target: https://requires.io/github/emory-libraries/eulexistdb/requirements/?branch=master
     :alt: Requirements Status
 
 
