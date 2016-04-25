@@ -1,0 +1,48 @@
+{% load i18n %}{% load cycle from debug_toolbar_compat %}
+<h4>{% trans "Summary" %}</h4>
+<table>
+	<thead>
+	<tr>
+		<th>{% trans "Total Queries" %}</th>
+		<th>{% trans "Total time" %}</th>
+	</tr>
+	</thead>
+	<tbody>
+	<tr>
+		<td>{{ total_queries }}</td>
+		<td>{{ total_time }} ms</td>
+	</tr>
+	</tbody>
+</table>
+{% if queries %}
+<h4>{% trans "Queries" %}</h4>
+<table>
+	<thead>
+		<tr>
+			<th colspan="2">{% trans "Time (ms)" %}</th>
+			<th>{% trans "Xquery" %}</th>
+			<th>{% trans "Arguments" %}</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for query in queries %}
+
+
+		<tr class="{% cycle 'djDebugOdd' 'djDebugEven' %}" id="existdbMain_{{ forloop.counter }}">
+			<td class="djdt-toggle">
+				<a class="djToggleSwitch" data-toggle-name="cacheMain" data-toggle-id="{{ forloop.counter }}" data-toggle-open="+" data-toggle-close="-" href>+</a>
+			</td>
+			<td>{{ query.time|floatformat:"4" }}</td>
+			<td><pre>{% firstof query.args.0 query.kwargs.xquery %}</pre></td>
+			<td>{% for arg, opt in  query.kwargs.iteritems %}
+				{{ arg }}: {{ opt }}{% if not forloop.last %}<br/>{% endif %}
+				{% endfor %}
+			</td>
+		</tr>
+		<tr class="djUnselected djDebugHoverable {% cycle 'djDebugOdd' 'djDebugEven' %} djToggleDetails_{{ forloop.counter }}" id="cacheDetails_{{ forloop.counter }}">
+			<td colspan="4"><pre class="djdt-stack">{{ query.return_value|escape }}</pre></td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endif %}

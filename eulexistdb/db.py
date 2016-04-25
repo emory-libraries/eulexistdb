@@ -87,6 +87,7 @@ collections in eXist.
 from functools import wraps
 import httplib
 import logging
+import requests
 import socket
 from urllib import unquote_plus, splittype
 import urlparse
@@ -107,18 +108,18 @@ def _wrap_xmlrpc_fault(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except socket.timeout as e:
+        except (socket.timeout, requests.exceptions.ReadTimeout) as e:
             raise ExistDBTimeout(e)
         except (socket.error, xmlrpclib.Fault, \
-            xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
-                raise ExistDBException(e)
+                xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
+            raise ExistDBException(e)
         # FIXME: could we catch IOerror (connection reset) and try again ?
         # occasionally getting this error (so far exclusively in unit tests)
         # error: [Errno 104] Connection reset by peer
     return wrapper
 
 
-class ExistDB:
+class ExistDB(object):
     """Connect to an eXist database, and manipulate and query it.
 
     Construction doesn't initiate server communication, only store
@@ -133,15 +134,16 @@ class ExistDB:
                        defaults to "UTF-8"
     :param verbose:    When True, print XML-RPC debugging messages to stdout
     :param timeout: Specify a timeout for xmlrpc connection
-      requests.If not specified, the global default socket timeout
+      requests.  If not specified, the global default socket timeout
       value will be used.
-
+    :param keep_alive: Optional parameter, to disable requests built-in
+      session handling;  can also be configured in django settings
+      with EXISTDB_SESSION_KEEP_ALIVE
     """
 
-    def __init__(self, server_url=None, resultType=None, encoding='UTF-8', verbose=False,
-                 **kwargs):
-        # FIXME: Will encoding ever be anything but UTF-8? Does this really
-        #   need to be part of our public interface?
+    def __init__(self, server_url=None, username=None, password=None,
+                 resultType=None, encoding='UTF-8', verbose=False,
+                 keep_alive=None, **kwargs):
 
         self.resultType = resultType or QueryResult
         datetime_opt = {'use_datetime': True}
@@ -153,38 +155,44 @@ class ExistDB:
         if 'timeout' in kwargs:
             timeout = kwargs['timeout']
 
+        # add username/password to url if set
+        self.exist_url = server_url
+        self.username = username
+        self.password = password
+
         # if server url or timeout are not set, attempt to get from django settings
-        if server_url is None or 'timeout' not in kwargs:
+        if self.exist_url is None or 'timeout' not in kwargs:
             try:
                 from django.conf import settings
-                if server_url is None:
-                    server_url = self._serverurl_from_djangoconf()
-                    
+                if self.exist_url is None:
+                    self.exist_url = self._serverurl_from_djangoconf()
+
                 if 'timeout' not in kwargs:
                     timeout = getattr(settings, 'EXISTDB_TIMEOUT', None)
             except ImportError:
                 pass
 
-            
         # if server url is still not set, we have a problem
-        if server_url is None:
+        if self.exist_url is None:
             raise Exception('Cannot initialize an eXist-db connection without specifying ' +
                             'eXist server url directly or in Django settings as EXISTDB_SERVER_URL')
 
+        # initialize a requests session; used for REST api calls
+        # AND for xmlrpc transport
+        self.session = requests.Session()
+        if self.username is not None and self.password is not None:
+            self.session.auth = (self.username, self.password)
+        # if a keep-alive option is specified, configure the session
+        if keep_alive is None:
+            keep_alive = getattr(settings, 'EXISTDB_SESSION_KEEP_ALIVE', None)
+        if keep_alive is not None:
+            self.session.keep_alive = keep_alive
 
-
-        # determine if we need http or https transport
-        # (duplicates some logic in xmlrpclib)
-        type, uri = splittype(server_url)
-        if type not in ("http", "https"):
-            raise IOError, "unsupported XML-RPC protocol"
-        if type == 'https':
-            transport = TimeoutSafeTransport(timeout=timeout, **datetime_opt)
-        else:
-            transport = TimeoutTransport(timeout=timeout, **datetime_opt)
+        transport = RequestsTransport(timeout=timeout, session=self.session,
+                                      url=self.exist_url, **datetime_opt)
 
         self.server = xmlrpclib.ServerProxy(
-                uri="%s/xmlrpc" % server_url.rstrip('/'),
+                uri='%s/xmlrpc' % self.exist_url.rstrip('/'),
                 transport=transport,
                 encoding=encoding,
                 verbose=verbose,
@@ -198,51 +206,54 @@ class ExistDB:
             from django.conf import settings
 
             # don't worry about errors on this one - if it isn't set, this should fail
-            exist_url = settings.EXISTDB_SERVER_URL
+            self.exist_url = settings.EXISTDB_SERVER_URL
 
             # former syntax had credentials in the server url; warn about the change
-            if '@' in exist_url:
+            if '@' in self.exist_url:
                 warnings.warn('EXISTDB_SERVER_URL should not include eXist user or ' +
                               'password information.  You should update your django ' +
                               'settings to use EXISTDB_SERVER_USER and EXISTDB_SERVER_PASSWORD.')
 
             # look for username & password
-            username = getattr(settings, 'EXISTDB_SERVER_USER', None)
-            password = getattr(settings, 'EXISTDB_SERVER_PASSWORD', None)
+            self.username = getattr(settings, 'EXISTDB_SERVER_USER', None)
+            self.password = getattr(settings, 'EXISTDB_SERVER_PASSWORD', None)
 
-            # if username or password are configured, add them to the url
-            if username or password:
-                # split the url into its component parts
-                urlparts = urlparse.urlsplit(exist_url)
-                # could have both username and password or just a username
-                if username and password:
-                    prefix = '%s:%s' % (username, password)
-                else:
-                    prefix = username
-                # prefix the network location with credentials
-                netloc = '%s@%s' % (prefix, urlparts.netloc)
-                # un-split the url with all the previous parts and modified location
-                exist_url = urlparse.urlunsplit((urlparts.scheme, netloc, urlparts.path,
-                                                urlparts.query, urlparts.fragment))
+            return self.exist_url
 
-            return exist_url
         except ImportError:
             pass
 
+    def restapi_path(self, path):
+        # generate rest path to a collection or document
+        # FIXME: getting duplicated db path, handle this better
+        if path.startswith('/db'):
+            path = path[len('/db'):]
+        # make sure there is a slash between db and requested path
+        if not path.startswith('/'):
+            path = '/%s' % path
+        return '%s/rest/db%s' % (self.exist_url.rstrip('/'), path)
 
-    def getDocument(self, name, **kwargs):
+
+    def getDocument(self, name):
         """Retrieve a document from the database.
 
         :param name: database document path to retrieve
         :rtype: string contents of the document
 
         """
-        logger.debug('getDocumentAsString %s options=%s' % (name, kwargs))
-        return self.server.getDocumentAsString(name, kwargs)
+        # REST api; need an error wrapper?
+        logger.debug('getDocument %s' % self.restapi_path(name))
+        response = self.session.get(self.restapi_path(name), stream=False)
+        if response.status_code == requests.codes.ok:
+            return response.content
+        if response.status_code == requests.codes.not_found:
+            # matching previous xmlrpc behavior;
+            # TODO: use custom exception classes here
+            raise ExistDBException('%s not found' % name)
 
-    def getDoc(self, name, **kwargs):
+    def getDoc(self, name):
         "Alias for :meth:`getDocument`."
-        return self.getDocument(name, **kwargs)
+        return self.getDocument(name)
 
 
     def createCollection(self, collection_name, overwrite=False):
@@ -284,9 +295,10 @@ class ExistDB:
             logger.debug('describeCollection %s' % collection_name)
             self.server.describeCollection(collection_name)
             return True
-        except xmlrpclib.Fault, e:
+        except Exception as e:
+            # now could be generic ProtocolError
             s = "collection " + collection_name + " not found"
-            if (e.faultCode == 0 and s in e.faultString):
+            if hasattr(e, 'faultCode') and (e.faultCode == 0 and s in e.faultString):
                 return False
             else:
                 raise ExistDBException(e)
@@ -348,10 +360,9 @@ class ExistDB:
         logger.debug('getCollectionDesc %s' % collection_name)
         return self.server.getCollectionDesc(collection_name)
 
-    @_wrap_xmlrpc_fault
     def load(self, xml, path, overwrite=False):
         """Insert or overwrite a document in the database.
-        
+
         :param xml: string or file object with the document contents
         :param path: destination location in the database
         :param overwrite: True to allow overwriting an existing document
@@ -362,7 +373,18 @@ class ExistDB:
             xml = xml.read()
 
         logger.debug('parse %s overwrite=%s' % (path, overwrite))
-        return self.server.parse(xml, path, int(overwrite))
+        # NOTE: overwrite is assumed by REST
+        response = self.session.put(self.restapi_path(path), xml, stream=False)
+        if response.status_code == requests.codes.bad_request:
+            # response is HTML, not xml...
+            # could use regex or beautifulsoup to pull out the error
+            raise ExistDBException
+
+        # expect 201 created for new documents, 200 for
+        # successful update of an existing document
+        return response.status_code == requests.codes.created or \
+            (overwrite and response.status_code == requests.codes.ok)
+
 
     @_wrap_xmlrpc_fault
     def removeDocument(self, name):
@@ -392,35 +414,82 @@ class ExistDB:
         return True
 
     @_wrap_xmlrpc_fault
-    def query(self, xquery, start=1, how_many=10, **kwargs):
+    def query(self, xquery=None, start=1, how_many=10, cache=False, session=None,
+        release=None, result_type=None):
         """Execute an XQuery query, returning the results directly.
 
         :param xquery: a string XQuery query
         :param start: first index to return (1-based)
         :param how_many: maximum number of items to return
+        :param cache: boolean, to cache a query and return a session id (optional)
+        :param session: session id, to retrieve a cached session (optional)
+        :param release: session id to be released (optional)
         :rtype: the resultType specified at the creation of this ExistDB;
                 defaults to :class:`QueryResult`.
 
         """
-        logger.debug('query how_many=%d start=%d args=%s\n%s' % (how_many, start, kwargs, xquery))
-        xml_s = self.server.query(xquery, how_many, start, kwargs)
 
-        # xmlrpclib tries to guess whether the result is a string or
-        # unicode, returning whichever it deems most appropriate.
-        # Unfortunately, :meth:`~eulxml.xmlmap.load_xmlobject_from_string`
-        # requires a byte string. This means that if xmlrpclib gave us a
-        # unicode, we need to encode it:
-        if isinstance(xml_s, unicode):
-            xml_s = xml_s.encode("UTF-8")
+        # xml_s = self.server.query(xquery, how_many, start, kwargs)
+        params = {
+            '_howmany': how_many,
+            '_start': start,
+        }
+        if xquery is not None:
+            params['_query'] = xquery
+        if cache:
+            params['_cache'] = 'yes'
+        if release is not None:
+            params['_release'] = release
+        if session is not None:
+            params['_session'] = session
+        if result_type is None:
+            result_type = self.resultType
 
-        return xmlmap.load_xmlobject_from_string(xml_s, self.resultType)
+        opts = ' '.join('%s=%s' % (key.lstrip('_'), val)
+                        for key, val in params.iteritems() if key != '_query')
+        if xquery:
+            debug_query = '\n%s' % xquery
+        else:
+            debug_query = ''
+        logger.debug('query %s%s' % (opts, debug_query))
+
+        response = self.session.get(self.restapi_path(''), params=params, stream=False)
+
+        if response.status_code == requests.codes.ok:
+            # successful release doesn't return any content
+            if release is not None:
+                return True  # successfully released
+
+            # TODO: test unicode handling
+            return xmlmap.load_xmlobject_from_string(response.content, result_type)
+
+        # 400 bad request returns an xml error we can parse
+        elif response.status_code == requests.codes.bad_request:
+            err = xmlmap.load_xmlobject_from_string(response.content, ExistExceptionResponse)
+            raise ExistDBException(err.message)
+
+        # not sure if any information is available on other error codes
+        else:
+            raise ExistDBException(response.content)
+
+        # xml_s = self.server.query(xquery, how_many, start, kwargs)
+
+        # # xmlrpclib tries to guess whether the result is a string or
+        # # unicode, returning whichever it deems most appropriate.
+        # # Unfortunately, :meth:`~eulxml.xmlmap.load_xmlobject_from_string`
+        # # requires a byte string. This means that if xmlrpclib gave us a
+        # # unicode, we need to encode it:
+        # if isinstance(xml_s, unicode):
+        #     xml_s = xml_s.encode("UTF-8")
+
+        # return xmlmap.load_xmlobject_from_string(xml_s, self.resultType)
 
     @_wrap_xmlrpc_fault
     def executeQuery(self, xquery):
         """Execute an XQuery query, returning a server-provided result
         handle.
 
-        :param xquery: a string XQuery query 
+        :param xquery: a string XQuery query
         :rtype: an integer handle identifying the query result for future calls
 
         """
@@ -489,7 +558,7 @@ class ExistDB:
             defaults to False
         :rtype: the query result item as a string
 
-        """        
+        """
         if highlight:
             # eXist highlight modes: attributes, elements, or both
             # using elements because it seems most reasonable default
@@ -539,13 +608,13 @@ class ExistDB:
 
         :param collection_name: name of the collection to be indexed
         :param index: string or file object with the document contents (as used by :meth:`load`)
-        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)        
+        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)
         :rtype: boolean indicating success
-        
+
         """
         index_collection = self._configCollectionName(collection_name)
         # FIXME: what error handling should be done at this level?
-        
+
         # create config collection if it does not exist
         if not self.hasCollection(index_collection):
             self.createCollection(index_collection)
@@ -557,22 +626,22 @@ class ExistDB:
         """Remove index configuration for the specified collection.
         If index collection has no documents or subcollections after the index
         file is removed, the configuration collection will also be removed.
-        
+
         :param collection: name of the collection with an index to be removed
         :rtype: boolean indicating success
 
         """
         # collection indexes information must be stored under system/config/db/collection_name
         index_collection = self._configCollectionName(collection_name)
-        
+
         # remove collection.xconf in the configuration collection
         self.removeDocument(self._collectionIndexPath(collection_name))
-        
+
         desc = self.getCollectionDescription(index_collection)
         # no documents and no sub-collections - safe to remove index collection
         if desc['collections'] == [] and desc['documents'] == []:
             self.removeCollection(index_collection)
-            
+
         return True
 
     def hasCollectionIndex(self, collection_name):
@@ -581,10 +650,10 @@ class ExistDB:
         Note: according to eXist documentation, index config file does not *have*
         to be named *collection.xconf* for reasons of backward compatibility.
         This function assumes that the recommended naming conventions are followed.
-        
+
         :param collection: name of the collection with an index to be removed
         :rtype: boolean indicating collection index is present
-        
+
         """
         return self.hasCollection(self._configCollectionName(collection_name)) \
             and self.hasDocument(self._collectionIndexPath(collection_name))
@@ -604,6 +673,31 @@ class ExistDB:
         # collection indexes information must be stored under system/config/db/collection_name
         return self._configCollectionName(collection_name) + "/collection.xconf"
 
+    # admin functionality; where should this live?
+
+    def create_group(self, group):
+        # create a group; returns true if the group was created,
+        # false if the group already exists
+        try:
+            result = self.query('sm:create-group("%s")' % group);
+            # returns a query result with no information on success
+            return True
+        except ExistDBException as err:
+            if 'group with name %s already exists' % group in err.message():
+                return False
+
+    def create_account(self, username, password, groups):
+        try:
+            result = self.query('sm:create-account("%s", "%s", "%s")' % \
+                (username, password, groups))
+            return True
+        except ExistDBException as err:
+            if 'user account with username %s already exists' % username in err.message():
+                return False
+            # NOTE: might be possible to also get a group error here
+            # perhaps just check for 'already exists' ?
+
+
 class ExistPermissions:
     "Permissions for an eXist resource - owner, group, and active permissions."
     def __init__(self, data):
@@ -620,20 +714,23 @@ class ExistPermissions:
 
 class QueryResult(xmlmap.XmlObject):
     """The results of an eXist XQuery query"""
-    
-    start = xmlmap.IntegerField("@start")
+
+    start = xmlmap.IntegerField("@start|@exist:start")
     """The index of the first result returned"""
 
     values = xmlmap.StringListField("exist:value")
     "Generic value (*exist:value*) returned from an exist xquery"
 
-    _raw_count = xmlmap.IntegerField("@count")
+    session = xmlmap.IntegerField("@exist:session")
+    "Session id, when a query is requested to be cached"
+
+    _raw_count = xmlmap.IntegerField("@count|@exist:count")
     @property
     def count(self):
         """The number of results returned in this chunk"""
         return self._raw_count or 0
-    
-    _raw_hits = xmlmap.IntegerField("@hits")
+
+    _raw_hits = xmlmap.IntegerField("@hits|@exist:hits")
     @property
     def hits(self):
         """The total number of hits found by the search"""
@@ -645,124 +742,92 @@ class QueryResult(xmlmap.XmlObject):
         :attr:`start` and containing :attr:`count` members"""
         return self.node.xpath('*')
 
-    # FIXME: Why do we have two properties here with the same value?
-    # start == show_from. We should pick one and deprecate the other.
-    @property
-    def show_from(self):
-        """The index of first object in this result chunk.
-        
-        Equivalent to :attr:`start`."""
-        return self.start
 
-    # FIXME: Not sure how we're using this, but it feels wonky. If we're
-    # using it for chunking or paging then we should probably follow the
-    # slice convention of returning the index past the last one. If we're
-    # using it for pretty-printing results ranges then the rVal < 0 branch
-    # sounds like an exception condition that should be handled at a higher
-    # level. Regardless, shouldn't some system invariant handle the rVal >
-    # self.hits branch for us? This whole method just *feels* weird. It
-    # warrants some examination.
-    @property
-    def show_to(self):
-        """The index of last object in this result chunk"""
-        rVal = (self.start - 1) + self.count
-        if rVal > self.hits:
-            #show_to can not exceed total hits
-            return self.hits
-        elif rVal < 0:
-            return 0
-        else:
-            return rVal
-
-    # FIXME: This, too, feels like it checks a number of things that should
-    # probably be system invariants. We should coordinate what this does
-    # with how it's actually used.
-    def hasMore(self):
-        """Are there more matches after this one?"""
-        if not self.hits or not self.start or not self.count:
-            return False
-        return self.hits > (self.start + self.count)
+class ExistExceptionResponse(xmlmap.XmlObject):
+    '''XML exception response returned on an error'''
+    #: db path where the error occurred
+    path = xmlmap.StringField('path')
+    #: error message
+    message = xmlmap.StringField('message')
+    #: query that generated the error
+    query = xmlmap.StringField('query')
 
 
+# requests-based xmlrpc transport
+# https://gist.github.com/chrisguitarguy/2354951
+class RequestsTransport(xmlrpclib.Transport):
+    """
+    Transport for xmlrpclib that uses Requests instead of httplib.
 
-# Custom xmlrpclib Transport classes for configurable timeout
-# Initially adapted from code found here:
-# http://stackoverflow.com/questions/372365/set-timeout-for-xmlrpclib-serverproxy
+    Additional parameters:
 
-# NOTE: TimeoutHTTP and TimeoutHTTPS are needed for compatibility with
-# Python 2.6 and earlier (see UGLY HACK ALERT below). They are not used in
-# Python 2.7 and newer.
-class TimeoutHTTP(httplib.HTTP):
-    def __init__(self, host='', port=None, strict=None, timeout=None):
-         if port == 0:
-             port = None
-         self._setup(self._connection_class(host, port, strict, timeout))
+    :param timeout: optional timeout for xmlrpc requests
+    :param session: optional requests session; use a custom session
+        if your xmlrpc server requires authentication
+    :param url: optional xmlrpc url; used to determine if https should
+        be used when making xmlrpc requests
+    """
+    # update user agent to reflect use of requests
+    user_agent = "xmlrpclib.py/%s via requests %s" % (xmlrpclib.__version__,
+        requests.__version__)
 
-class TimeoutHTTPS(httplib.HTTPS):
-    def __init__(self, host='', port=None, strict=None, timeout=None):
-         if port == 0:
-             port = None
-         self._setup(self._connection_class(host, port, strict, timeout))
+    # boolean flag to indicate whether https should be used or not
+    use_https = False
 
-class TimeoutTransport(xmlrpclib.Transport):
-    '''Extend the default :class:`xmlrpclib.Transport` to expose a
-    connection timeout parameter.'''
-    # UGLY HACK ALERT. Python 2.6 wants make_connection to return something
-    # that looks like a httplib.HTTP. Python 2.7 wants a
-    # httplib.HTTPConnection. We use an ugly hack (commented below) to
-    # figure out which environment we're running in. _http_connection is
-    # used for 2.7-style connections; _http_connection_compat is used for
-    # 2.6-style.
-    _http_connection = httplib.HTTPConnection
-    _http_connection_compat = TimeoutHTTP
-
-    def __init__(self, timeout=None, *args, **kwargs):
+    def __init__(self, timeout=None, session=None, url=None, *args, **kwargs):
         if timeout is None:
             timeout = socket._GLOBAL_DEFAULT_TIMEOUT
         xmlrpclib.Transport.__init__(self, *args, **kwargs)
         self.timeout = timeout
+        # NOTE: assumues that if basic auth is needed, it is set
+        # on the session that is passed in
+        if session:
+            self.session = session
+        else:
+            self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': self.user_agent,
+            'Content-Type': 'application/xml'
+        })
 
-        # UGLY HACK ALERT. If we're running on Python 2.6 or earlier,
-        # self.make_connection() needs to return an HTTP; newer versions
-        # expect an HTTPConnection. Our strategy is to guess which is
-        # running, and override self.make_connection for older versions.
-        # That check and override happens here.
-        if self._connection_requires_compat():
-            self.make_connection = self._make_connection_compat
 
-    def _connection_requires_compat(self):
-        # UGLY HACK ALERT. Python 2.7 xmlrpclib caches connection objects in
-        # self._connection (and sets self._connection in __init__). Python
-        # 2.6 and earlier has no such cache. Thus, if self._connection
-        # exists, we're running the newer-style, and if it doesn't then
-        # we're running older-style and thus need compatibility mode.
+        # determine whether https is needed based on the url
+        if url is not None:
+            self.use_https = (splittype(url)[0] == 'https')
+
+    def request(self, host, handler, request_body, verbose):
+        """
+        Make an xmlrpc request.
+        """
+        url = self._build_url(host, handler)
         try:
-            self._connection
-            return False
-        except AttributeError:
-            return True
+            resp = self.session.post(url, data=request_body,
+                timeout=self.timeout)
+        except Exception:
+            raise # something went wrong
+        else:
+            try:
+                resp.raise_for_status()
+            except requests.RequestException as err:
+                raise xmlrpclib.ProtocolError(url, resp.status_code,
+                                              str(err), resp.headers)
+            else:
+                return self.parse_response(resp)
 
-    def make_connection(self, host):
-        # This is the make_connection that runs under Python 2.7 and newer.
-        # The code is pulled straight from 2.7 xmlrpclib, except replacing
-        # HTTPConnection with self._http_connection
-        if self._connection and host == self._connection[0]:
-            return self._connection[1]
-        chost, self._extra_headers, x509 = self.get_host_info(host)
-        self._connection = host, self._http_connection(chost, timeout=self.timeout)
-        return self._connection[1]
+    def parse_response(self, resp):
+        """
+        Parse the xmlrpc response.
+        """
+        parser, unmarshaller = self.getparser()
+        parser.feed(resp.text)
+        parser.close()
+        return unmarshaller.close()
 
-    def _make_connection_compat(self, host):
-        # This method runs as make_connection under Python 2.6 and older.
-        # __init__ detects which version we need and pastes this method
-        # directly into self.make_connection if necessary.
-        host, extra_headers, x509 = self.get_host_info(host)
-        return self._http_connection_compat(host, timeout=self.timeout)
-
-
-class TimeoutSafeTransport(TimeoutTransport):
-    '''Extend class:`TimeoutTransport` but use HTTPS connections;
-    timeout-enabled equivalent to :class:`xmlrpclib.SafeTransport`.'''
-    _http_connection = httplib.HTTPSConnection
-    _http_connection_compat = TimeoutHTTPS
+    def _build_url(self, host, handler):
+        """
+        Build a url for our request based on the host, handler and use_http
+        property
+        """
+        scheme = 'https' if self.use_https else 'http'
+        return '%s://%s%s' % (scheme, host, handler)
 

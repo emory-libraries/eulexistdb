@@ -54,6 +54,7 @@ from os import path
 import re
 import sys
 
+
 from django.test import TestCase as DjangoTestCase
 from django.conf import settings
 
@@ -154,6 +155,7 @@ class ExistDBTestWrapper(object):
 
     def use_test_collection(self):
         self.stored_default_collection = getattr(settings, "EXISTDB_ROOT_COLLECTION", None)
+        setattr(settings, "EXISTDB_ROOT_COLLECTION_REAL", self.stored_default_collection)
 
         if getattr(settings, "EXISTDB_TEST_COLLECTION", None):
             settings.EXISTDB_ROOT_COLLECTION = settings.EXISTDB_TEST_COLLECTION
@@ -169,6 +171,8 @@ class ExistDBTestWrapper(object):
 
     def restore_root_collection(self):
         # if use_test_collection didn't run, don't change anything
+        delattr(settings, "EXISTDB_ROOT_COLLECTION_REAL")
+
         if self.stored_default_collection is not None:
             print >> sys.stderr, "Removing eXist Test Collection: %s" % settings.EXISTDB_ROOT_COLLECTION
             # before restoring existdb non-test root collection, init db connection
@@ -213,7 +217,9 @@ try:
 
         def run_suite(self, suite, **kwargs):
             return ExistDBTextTestRunner(verbosity=self.verbosity,
-               failfast=self.failfast).run(suite)
+                                         failfast=self.failfast).run(suite)
+except ImportError:
+    pass
 
     try:
         # when xmlrunner is available, define xmltest variants

@@ -24,6 +24,8 @@ from eulexistdb.db import ExistDB
 from eulexistdb.manager import Manager
 from eulexistdb.models import XmlModel
 
+from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
+    EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION
 
 # test model/manager logic
 
@@ -49,7 +51,8 @@ class ModelTest(unittest.TestCase):
     COLLECTION = settings.EXISTDB_TEST_COLLECTION
 
     def setUp(self):
-        self.db = ExistDB()
+        self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         self.db.createCollection(self.COLLECTION, True)
 
         test_dir = os.path.dirname(os.path.abspath(__file__))

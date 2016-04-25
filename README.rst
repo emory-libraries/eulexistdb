@@ -1,17 +1,44 @@
 EULexistdb
 ==========
 
-   
-.. image:: https://pypip.in/version/eulexistdb/badge.png  
-   :target: https://pypi.python.org/pypi/eulexistdb
 
-.. image:: https://pypip.in/license/eulexistdb/badge.png
+**package**
+  .. image:: https://img.shields.io/pypi/v/eulexistdb.svg
+    :target: https://pypi.python.org/pypi/eulexistdb
+    :alt: PyPI
 
-.. image:: https://pypip.in/download/eulexistdb/badge.png
+  .. image:: https://img.shields.io/github/license/emory-libraries/eulexistdb.svg
+    :alt: License
+
+  .. image:: https://img.shields.io/pypi/dm/eulexistdb.svg
+    :alt: PyPI downloads
+
+**documentation**
+  .. image:: https://readthedocs.org/projects/eulexistdb/badge/?version=stable
+    :target: http://eulexistdb.readthedocs.org/en/latest/?badge=stable
+    :alt: Documentation Status
+
+**code**
+  .. image:: https://travis-ci.org/emory-libraries/eulexistdb.svg?branch=master
+    :target: https://travis-ci.org/emory-libraries/eulexistdb
+    :alt: travis-ci build
+
+  .. image:: https://coveralls.io/repos/github/emory-libraries/eulexistdb/badge.svg?branch=master
+    :target: https://coveralls.io/github/emory-libraries/eulexistdb?branch=master
+    :alt: Code Coverage
+
+  .. image:: https://codeclimate.com/github/emory-libraries/eulexistdb/badges/gpa.svg
+    :target: https://codeclimate.com/github/emory-libraries/eulexistdb
+    :alt: Code Climate
+
+  .. image:: https://requires.io/github/emory-libraries/eulexistdb/requirements.svg?branch=master
+    :target: https://requires.io/github/emory-libraries/eulexistdb/requirements/?branch=master
+    :alt: Requirements Status
+
 
 EULexistdb is a `Python <http://www.python.org/>`_ module that
 provides utilities and classes for interacting with the `eXist-db XML
-Database <http://exist.sourceforge.net/>`_ (version 1.4) in a
+Database <http://exist.sourceforge.net/>`_ (tested against version 2.2) in a
 pythonic, object-oriented way, with optional `Django
 <https://www.djangoproject.com/>`_ integration.
 

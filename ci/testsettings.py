@@ -22,10 +22,12 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'localsettings'
 # secret key required as of django 1.5
 SECRET_KEY = 'notsomuchofasecretafterall'
 
+# settings for locally built version of exist using ci scripts
+# default admin account username is admin with no password
 
-EXISTDB_SERVER_URL = 'http://server.domain.com:port/exist/'
+EXISTDB_SERVER_URL = 'http://localhost:8080/exist/'
 # exist admin account must be have dba privileges
-EXISTDB_SERVER_ADMIN_USER = ""
+EXISTDB_SERVER_ADMIN_USER = "admin"
 EXISTDB_SERVER_ADMIN_PASSWORD = ""
 
 # limited-access test account; will be created by the admin user for
@@ -40,3 +42,5 @@ EXISTDB_TEST_COLLECTION = EXISTDB_TEST_BASECOLLECTION + EXISTDB_ROOT_COLLECTION
 # user group will be created by admin account for permissions purposes
 EXISTDB_TEST_GROUP = 'eulexistdb-test'
 
+# for travis-ci, disable sessions since jetty exist doesn't support them
+EXISTDB_SESSION_KEEP_ALIVE = False
