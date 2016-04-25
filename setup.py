@@ -51,5 +51,7 @@ setup(
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
     long_description=LONG_DESCRIPTION,
     classifiers=CLASSIFIERS,
-    keywords='eXist-db XQuery'
+    keywords='eXist-db XQuery',
+    include_package_data=True,
+    package_data={'eulexistdb': ['eulexistdb/templates/eulexistdb/*.html']},
 )
