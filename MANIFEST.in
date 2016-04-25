@@ -1,8 +1,8 @@
 include *LICENSE*
-include CHANGELOG
+include CHANGELOG*
 include README*
 recursive-include doc Makefile *.rst *.py
 recursive-include test *.py
 recursive-include test/test_existdb *.py
 recursive-include test/test_existdb/exist_fixtures *
-recursive-include eulexistdb/templates *
+recursive-include eulexistdb/templates/eulexistdb *.html
