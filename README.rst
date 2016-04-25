@@ -14,12 +14,12 @@ EULexistdb
     :alt: PyPI downloads
 
 **documentation**
-  .. image:: https://readthedocs.org/projects/eulexistdb/badge/?version=latest
-    :target: http://eulexistdb.readthedocs.org/en/latest/?badge=latest
+  .. image:: https://readthedocs.org/projects/eulexistdb/badge/?version=develop
+    :target: http://eulexistdb.readthedocs.org/en/latest/?badge=develop
     :alt: Documentation Status
 
 **code**
-  .. image:: https://travis-ci.org/emory-libraries/eulexistdb.svg?branch=feature/existdb2.2
+  .. image:: https://travis-ci.org/emory-libraries/eulexistdb.svg?branch=develop
     :target: https://travis-ci.org/emory-libraries/eulexistdb
     :alt: travis-ci build
 
