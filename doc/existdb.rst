@@ -68,7 +68,7 @@ Django tie-ins for :mod:`eulexistdb`
       Two use cases are particularly common. First, a developer may wish to
       use an ``XmlModel`` just like an :class:`~eulxml.xmlmap.XmlObject`,
       but with the added semantics of being eXist-backed::
-      
+
         class StoredWidget(XmlModel):
             name = StringField("name")
             quantity = IntegerField("quantity")
@@ -126,4 +126,10 @@ For more details on these commands, use ``manage.py <command> help``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: eulexistdb.testutil
+    :members:
+
+:mod:`~eulexistdb.debug_panel` Debug Toolbar Panel
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: eulexistdb.debug_panel
     :members:

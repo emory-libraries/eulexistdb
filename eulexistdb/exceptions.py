@@ -1,5 +1,5 @@
 # file existdb/exceptions.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,9 +23,13 @@ class ExistDBException(Exception):
 
     rpc_prefix = 'RpcConnection: '
 
-    def message(self):        
+    def message(self):
         "Rough conversion of xmlrpc fault string into something human-readable."
-        orig_except = self.args[0]
+        try:
+            orig_except = self.args[0]
+        except IndexError:
+            orig_except = ''
+
         if isinstance(orig_except, socket.timeout):
             # socket timeout error text is always "timed out"
             message = 'Request Timed Out'
@@ -67,5 +71,5 @@ class ExistDBTimeout(ExistDBException):
 
 # other possible sub- exception types:
 # document not found (getDoc,remove)
-# collection not found 
+# collection not found
 

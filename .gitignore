@@ -6,3 +6,5 @@ test/localsettings.py
 coverage.xml
 nosetests.xml
 .coverage
+.tox
+.cache

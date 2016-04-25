@@ -38,10 +38,11 @@ from lxml.builder import ElementMaker
 import re
 from types import BooleanType
 
+from eulxml import xmlmap
 from eulxml.xmlmap import load_xmlobject_from_string
-from eulxml.xmlmap.fields import IntegerField, StringField, DateTimeField, NodeField, NodeListField
 from eulxml.xmlmap.core import XmlObjectType
 from eulxml.xpath import ast, parse, serialize
+from eulexistdb import db
 from eulexistdb.exceptions import DoesNotExist, ReturnedMultiple
 import logging
 logger = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ class QuerySet(object):
     # pre-compile regular expression for pulling sort flags off beginning of sort field
     _sort_field_re = re.compile(r'^(?P<flags>[~-]*)(?P<field>.*)$')
 
+    default_chunk_size = 100
+
     def __init__(self, model=None, xpath=None, using=None, collection=None,
                 xquery=None, fulltext_options={}):
         self.model = model
@@ -120,7 +123,8 @@ class QuerySet(object):
 
     def _release_query_result(self):
         # tell eXist we are done with this result set
-        self._db.releaseQueryResult(self._result_id)
+        self._db.query(release=self._result_id)
+        self._result_id = None
 
     @property
     def result_id(self):
@@ -139,16 +143,21 @@ class QuerySet(object):
             return self._stop - self._start
 
         if self._count is None:
-            self._count = self._db.getHits(self.result_id)
+            self._runQuery()
+            # self._count = self._db.getHits(self.result_id)
 
         return self._count - self._start
 
-    def queryTime(self):
-        """Return the time (in milliseconds) it took for eXist to run the
-        query, running the query first if it has not yet executed."""
-        # FIXME: should summary be cached ?
-        summary = self._db.querySummary(self.result_id)
-        return summary['queryTime']
+    # NOTE: for now queryTime is only available in xmlrpc, not REST api;
+    # but future versions of eXist may include it as an attribute on
+    # the exist result
+    #
+    # def queryTime(self):
+    #     """Return the time (in milliseconds) it took for eXist to run the
+    #     query, running the query first if it has not yet executed."""
+    #     # FIXME: should summary be cached ?
+    #     summary = self._db.querySummary(self.result_id)
+    #     return summary['queryTime']
 
     def _getCopy(self):
         """Get a clone of the current QuerySet for modification via
@@ -158,8 +167,11 @@ class QuerySet(object):
         copy.partial_fields = self.partial_fields.copy()
         copy.additional_fields = self.additional_fields.copy()
         copy._highlight_matches = self._highlight_matches
-        # reset result cache, if any, because any filters will change it
+        # reset result cache, session id, and count if set,
+        # because any filters will change them
         copy._result_cache = {}
+        copy._result_id = None
+        copy._count = None
         return copy
 
     def filter(self, combine='AND', **kwargs):
@@ -243,10 +255,13 @@ class QuerySet(object):
                 # boolean highlight setting overrides default
                 if 'highlight' in kwargs and isinstance(kwargs['highlight'], BooleanType):
                     qscopy._highlight_matches = kwargs['highlight']
+                    qscopy.query.highlight = kwargs['highlight']
                 else:
                     qscopy._highlight_matches = True
+                    qscopy.query.highlight = True
 
             if lookuptype == 'highlight':
+                qscopy.query.highlight = value
                 if isinstance(value, BooleanType):
                     # boolean - only triggers eXist highlighting in xml return
                     qscopy._highlight_matches = value
@@ -505,10 +520,16 @@ class QuerySet(object):
 
         fqs = self.filter(**kwargs)
         if fqs.count() == 1:
+            # use regular get item logic to retrieve the first (only) item
             obj = fqs[0]
             if self.model is not None and not self.query._distinct:
                 # when single object object is deleted, release this query set
                 setattr(obj, '__del__', self._release_query_result)
+
+            # disabled for now
+            # make queryTime method available on the single item
+            # setattr(obj, 'queryTime', self.queryTime)
+
             return obj
         # NOTE: behaves like django - throws a DoesNotExist or a MultipleObjectsReturned
         elif fqs.count() == 0:
@@ -526,12 +547,13 @@ class QuerySet(object):
             # if start was specified, use it; otherwise retain current start
             if k.start is not None:
                 qs._start = int(k.start)
-            # if a slice bigger than available results is requested, cap it at actual max
+            # if a slice bigger than available results is requested, cap it at
+            # actual max
             qs._stop = min(k.stop, self.count())
 
             # because the slicing is done within the result cache,
             # share the same cache across subsets of this queryset
-            qs._result_cache = self._result_cache  # FIXME: would it be better/safer to use a copy?
+            qs._result_cache = self._result_cache
 
             return qs
 
@@ -544,16 +566,20 @@ class QuerySet(object):
         # cache based on the start of the current slice
         i = k + self._start
 
+        max_items = self.default_chunk_size
+        if self._stop is not None:
+            max_items = self._stop - self._start + 1
+
+        # retrieve results in a chunk and cache them for individual item access
+        if not self._result_cache:
+            self._runQuery(self._start + 1, max_items=max_items)
+
+        # if for some reason the requested item is not available
+        # retrieve it individually (this should not generally be used)
         if i not in self._result_cache:
-            # if the requested item has not yet been retrieved, get it from eXist
-            item = self._db.retrieve(self.result_id, i, highlight=self._highlight_matches)
-            if self.model is None or self.query._distinct:
-                self._result_cache[i] = item.data
-            else:
-                obj = self._init_item(item.data)
-                # make queryTime method available when retrieving a single item
-                setattr(obj, 'queryTime', self.queryTime)
-                self._result_cache[i] = obj
+            # if the requested item has not yet been retrieved, get it
+            # exist start index is 1-based instead of zero, so +1
+            self._runQuery(start=i + 1, max_items=max_items)
 
         return self._result_cache[i]
 
@@ -579,6 +605,32 @@ class QuerySet(object):
                         override_xpaths=self.query.get_return_xpaths())
         return self._return_type
 
+    @property
+    def query_result_type(self):
+        '''Custom query result return type used to access a batch of results
+        wrapped in an exist result as returned by the REST API.  Extends
+        :class:`eulexistdb.db.QueryResult` to add an item-level result mapping
+        based, using :attr:`return_type` if appropriate.
+        '''
+        classname = "QuerySetResult"
+        if self.model is not None:
+            classname += self.model.__name__
+        fields = {}
+        if self.model is None or self.query._distinct:
+            # distinct values returns content, not nodes; string is
+            # probably reasonable here (although possibly unexpected results if
+            # querying for distinct numerical values)
+            fields['items'] = xmlmap.StringListField('*')
+        else:
+            xpath = '*'
+            if self.additional_fields:
+                # instead of root element, use first child node to xmlobject
+                # so additional fields can be referenced
+                xpath = '*/*[1]'
+            fields['items'] = xmlmap.NodeListField(xpath, self.return_type)
+        return XmlObjectType(classname, (db.QueryResult,), fields)
+
+
     def _init_item(self, data):
         # when there are additional fields, the main node is the first node under returned xml
         if self.additional_fields:
@@ -600,11 +652,37 @@ class QuerySet(object):
         # in django, calling len() populates the cache...
         return self.count()
 
-    def _runQuery(self):
+    def _runQuery(self, start=None, max_items=None):
         """Execute the currently configured query."""
-        if self._result_id is not None:
-            self._db.releaseQueryResult(self._result_id)
-        self._result_id = self._db.executeQuery(self.query.getQuery())
+        if max_items is None:
+            max_items = self.default_chunk_size
+        # exist start begins at 1, not 0
+        if start is None:
+            start = self._start + 1
+
+        # if we don't yet have a session, request one; if we do, use it
+        session_opts = {}
+        if self._result_id is None:
+            session_opts['cache'] = True
+        else:
+            session_opts['session'] = self._result_id
+
+        result = self._db.query(self.query.getQuery(), start=start,
+                                how_many=max_items,
+                                result_type=self.query_result_type,
+                                **session_opts)
+
+        # store the session id if a new one was requested
+        if self._result_id is None:
+            self._result_id = result.session
+        # store total count for the query
+        self._count = result.hits
+
+        # if items were retrieved, cache them
+        if max_items != 0:
+            self._result_cache = dict(enumerate(result.items,
+                                                start=start - 1))
+        return result
 
     def getDocument(self, docname):
         """Get a single document from the server by filename."""
@@ -653,11 +731,11 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             # field with the same type as the original model field, but with xpath of the variable
             # name, to match how additional field results are constructed by Xquery object
             if name == 'last_modified':     # special case field
-                field_type = DateTimeField
+                field_type = xmlmap.DateTimeField
             elif name == 'match_count':
-                    field_type = IntegerField
+                    field_type = xmlmap.IntegerField
             elif fields is None or isinstance(fields, basestring):
-                field_type = StringField    # handle special cases like fulltext score
+                field_type = xmlmap.StringField    # handle special cases like fulltext score
             else:
                 field_type = type(fields[-1])
 
@@ -678,9 +756,10 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
                 pattern = re.compile(r'(following|preceding)(-sibling)?::([^\[]*)(\[\d+\])?$')
                 xpath = pattern.sub(r'\3', xpath)
 
-            #TODO: create a clone function for nodefield that takes an xpath
+            # TODO: create a clone function for nodefield that takes an xpath
             # (this should make field-type instantiation more reliable and flexible)
-            if isinstance(fields[-1], NodeField) or isinstance(fields[-1], NodeListField):
+            if isinstance(fields[-1], xmlmap.NodeField) or \
+                isinstance(fields[-1], xmlmap.NodeListField):
                 class_fields[name] = field_type(xpath, fields[-1]._get_node_class())
             else:
                 class_fields[name] = field_type(xpath)
@@ -707,6 +786,10 @@ def escape_string(s):
 
 
 def _quote_as_string_literal(s):
+    # special case: do nothing to queries constructed using
+    # XmlQuery class
+    if (isinstance(s, XmlQuery)):
+        return s
     return '"' + escape_string(s) + '"'
 
 
@@ -837,22 +920,24 @@ class Xquery(object):
             xpath_parts.append('[%s]' % (' or '.join(self.or_filters)))
 
         if self.not_filters:
-            xpath_parts.append('[not(%s)]' % (' or '.join(self.not_filters)))
+            xpath_parts.append('[%s]' % (' and '.join(['not(%s)' % f for f in self.not_filters])))
 
         xpath = ''.join(xpath_parts)
-        # add highlighting if requested
+        # add search terms for highlighting if requested
         if self.highlight is not None:
-            # Highlighting results efficiently in eXist is a bit tricky.  We need to run a full-text search so
-            # eXist will enable match highlighting in the result, but we want to return the result even if there are
-            # no matches present. What we're doing here is telling eXist to take the first available version of the
-            # constructed xpath, either one that contains the fulltext search terms (if it exists),
-            # or (as a fallback) the one without them.
-            xpath = '(%(xp)s[ft:query(., %(val)s)]|%(xp)s)' % {'xp': xpath,
-                                                               'val': _quote_as_string_literal(self.highlight)}
+
+            if not isinstance(self.highlight, BooleanType):
+                # Highlighting results efficiently in eXist is a bit tricky.  We need to run a full-text search so
+                # eXist will enable match highlighting in the result, but we want to return the result even if there are
+                # no matches present. What we're doing here is telling eXist to take the first available version of the
+                # constructed xpath, either one that contains the fulltext search terms (if it exists),
+                # or (as a fallback) the one without them.
+                xpath = '(%(xp)s[ft:query(., %(val)s)]|%(xp)s)' % {'xp': xpath,
+                                                                   'val': _quote_as_string_literal(self.highlight)}
 
         # requires FLOWR instead of just XQuery  (sort, customized return, etc.)
         if self.order_by or self.return_fields or self.additional_return_fields \
-            or self.where_filters or (self.ft_query and self.fulltext_options):
+           or self.where_filters or (self.ft_query and self.fulltext_options):
 
             # some let statements must come at the beginning of a FLOWR query
             if self.ft_query and self.fulltext_options:
@@ -862,6 +947,7 @@ class Xquery(object):
                 for field, value in self.fulltext_options.iteritems():
                     opts.append(E(field, value))
                 flowr_pre = 'let %s := %s' % (self.ft_option_xqvar, etree.tostring(opts))
+
             else:
                 flowr_pre = ''
 
@@ -920,6 +1006,12 @@ class Xquery(object):
                                                 flowr_return] if part)     # don't generate blank lines in xqueries
         else:
             # if FLOWR is not required, just use plain xpath
+
+            # if highlighting is requested (boolean value OR search term)
+            # enable it here by wrapping around the entire xpath
+            if self.highlight:
+                xpath = 'util:expand(%s)' % xpath
+
             query = xpath
 
         if self._distinct:
@@ -1132,10 +1224,17 @@ class Xquery(object):
                         {'prefix': self._raw_prefix, 'name': name, 'xpath': xpath})
                 else:
                     rblocks.append(self.prep_xpath(xpath, return_field=True))
-            return 'return <%s>\n ' % (return_el) + '\n '.join(rblocks) + '\n</%s>' % (return_el)
+            return_el = '<%s>\n ' % (return_el) + '\n '.join(rblocks) + '\n</%s>' % (return_el)
         else:
             # return entire node, no constructed return
-            return 'return %s' % self.xq_var
+            return_el = self.xq_var
+
+        if self.highlight:
+            # if highlighting is requested, use util:expand from exist kwic
+            # to turn on exist:match search term tagging
+            return_el = 'util:expand(%s)' % return_el
+
+        return 'return %s' % return_el
 
     def _return_name_from_xpath(self, parsed_xpath):
         "Generate a top-level return element name based on the xpath."
@@ -1317,6 +1416,32 @@ class Xquery(object):
                 xpaths[name] = prefix + self.return_xpaths[i]
                 i += 1
         return xpaths
+
+
+class XmlQuery(xmlmap.XmlObject):
+    ''':class:`~eulxml.xmlmap.XmlObject` class to allow describing
+    `queries in xml <http://exist-db.org/exist/apps/doc/lucene.xml?q=query&field=all&id=D2.2.5.9#D2.2.5.9>`_.
+    '''
+    ROOT_NAME = 'query'
+    #: single search term
+    term = xmlmap.StringField('term')
+    #: phrase search
+    phrase = xmlmap.StringField('phrase')
+    #: near
+    near = xmlmap.StringField('near')
+    #: unordered near
+    near_unorderted = xmlmap.StringField('near[@ordered = "no"]')
+
+    # also available
+    # <bool><term>nation</term><term>miserable</term></bool>
+    # <bool><term>nation</term><wildcard>miser*</wildcard></bool>
+    # <bool><term>nation</term><regex>miser.*</regex></bool>
+    # <bool><term occur="must">boil</term><term occur="should">bubble</term
+
+    def __unicode__(self):
+        # serialize unquoted xml for use in an exist full-text xquery
+        return self.serialize()
+
 
 # some helpers for handling '__'-separated field names:
 

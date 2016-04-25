@@ -33,6 +33,7 @@ setup(
     license='Apache License, Version 2.0',
     packages=find_packages(),
     install_requires=[
+        'requests',
         'eulxml>=0.18.0',
     ],
     extras_require={
@@ -43,6 +44,8 @@ setup(
             'coverage',
             'Django',
             'unittest2',  # optional testrunner in testutil
+            'tox',
+            'django-debug-toolbar',
         ]
     },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',

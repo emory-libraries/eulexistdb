@@ -21,10 +21,10 @@ from eulxml import xmlmap
 from eulexistdb.db import ExistDB
 from eulexistdb.exceptions import DoesNotExist
 from eulexistdb.exceptions import ReturnedMultiple
-from eulexistdb.query import QuerySet
-from eulexistdb.query import Xquery
+from eulexistdb.query import QuerySet, Xquery, XmlQuery
 from test_existdb.test_db import EXISTDB_SERVER_URL
-from test_existdb.test_db import EXISTDB_TEST_COLLECTION
+from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
+    EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION
 
 
 class QuerySubModel(xmlmap.XmlObject):
@@ -89,21 +89,25 @@ NUM_FIXTURES = 4
 def load_fixtures(db):
     db.createCollection(COLLECTION, True)
 
-    db.load(FIXTURE_ONE, COLLECTION + '/f1.xml', True)
-    db.load(FIXTURE_TWO, COLLECTION + '/f2.xml', True)
-    db.load(FIXTURE_THREE, COLLECTION + '/f3.xml', True)
-    db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml', True)
+    db.load(FIXTURE_ONE, COLLECTION + '/f1.xml')
+    db.load(FIXTURE_TWO, COLLECTION + '/f2.xml')
+    db.load(FIXTURE_THREE, COLLECTION + '/f3.xml')
+    db.load(FIXTURE_FOUR, COLLECTION + '/f4.xml')
 
 
 class ExistQueryTest(unittest.TestCase):
 
     def setUp(self):
-        self.db = ExistDB(server_url=EXISTDB_SERVER_URL)
+        self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         load_fixtures(self.db)
         self.qs = QuerySet(using=self.db, xpath='/root', collection=COLLECTION, model=QueryTestModel)
 
     def tearDown(self):
         self.db.removeCollection(COLLECTION)
+        # release any queryset sessions before test user account
+        # is removed in module teardown
+        del self.qs
 
     def test_count(self):
         load_fixtures(self.db)
@@ -113,6 +117,14 @@ class ExistQueryTest(unittest.TestCase):
         qs = self.qs.order_by('id')     # adding sort order to test reliably
         self.assertEqual("abc", qs[0].id)
         self.assertEqual("def", qs[1].id)
+        self.assertEqual("one", qs[2].id)
+        self.assertEqual("xyz", qs[3].id)
+
+        # test getting single item beyond initial set
+        qs = self.qs.order_by('id')
+        # load initial result cache
+        self.assertEqual("abc", qs[0].id)
+        # retrieve individual items beyond the current cache
         self.assertEqual("one", qs[2].id)
         self.assertEqual("xyz", qs[3].id)
 
@@ -129,6 +141,7 @@ class ExistQueryTest(unittest.TestCase):
         self.assert_(isinstance(slice[0], QueryTestModel))
         self.assertEqual(2, slice.count())
         self.assertEqual(2, len(slice))
+
         self.assertEqual('abc', slice[0].id)
         self.assertEqual('def', slice[1].id)
         self.assertRaises(IndexError, slice.__getitem__, 2)
@@ -164,6 +177,14 @@ class ExistQueryTest(unittest.TestCase):
                          % self.qs.count())
         self.assertEqual("one", fqs[0].name, "name matches filter")
         self.assertEqual(NUM_FIXTURES, self.qs.count(), "main queryset remains unchanged by filter")
+
+    def test_filter_xmlquery(self):
+        fqs = self.qs.filter(name=XmlQuery(term="one"))
+        self.assertEqual(1, fqs.count(),
+            "count returns 1 when filtered on name = <query><term>one</term></query> (got %s)"
+             % self.qs.count())
+        self.assertEqual("one", fqs[0].name, "name matches filter")
+
 
     def test_filter_field_xpath(self):
         fqs = self.qs.filter(id="abc")
@@ -544,7 +565,8 @@ class ExistQueryTest__FullText(unittest.TestCase):
     '''
 
     def setUp(self):
-        self.db = ExistDB(server_url=EXISTDB_SERVER_URL)
+        self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
+            username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
         # create index for collection - should be applied to newly loaded files
         self.db.loadCollectionIndex(COLLECTION, self.FIXTURE_INDEX)
 
@@ -711,7 +733,8 @@ class XqueryTest(unittest.TestCase):
     def test_filters_highlight(self):
         xq = Xquery(xpath='/el')
         xq.add_filter('.', 'highlight', 'dog star')
-        self.assertEquals('(/el[ft:query(., "dog star")]|/el)', xq.getQuery())
+        self.assertEquals('util:expand((/el[ft:query(., "dog star")]|/el))',
+            xq.getQuery())
 
     def test_filter_escaping(self):
         xq = Xquery(xpath='/el')
@@ -770,7 +793,7 @@ class XqueryTest(unittest.TestCase):
         xq = Xquery(xpath='/el')
         xq.add_filter('.', 'contains', 'dog', mode='NOT')
         xq.add_filter('.', 'startswith', 'S', mode='NOT')
-        self.assertEquals('/el[not(contains(., "dog") or starts-with(., "S"))]',
+        self.assertEquals('/el[not(contains(., "dog")) and not(starts-with(., "S"))]',
                           xq.getQuery())
 
     def test_return_only(self):

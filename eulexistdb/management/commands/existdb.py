@@ -117,7 +117,7 @@ Available subcommands:
                 else:
                     print "This appears to be a new index configuration\n"
 
-                message =  "eXist index configuration \n collection:\t%s\n index file:\t%s" % (collection, index)
+                message = "eXist index configuration \n collection:\t%s\n index file:\t%s" % (collection, index)
 
                 success = self.db.loadCollectionIndex(collection, open(index))
                 if success:
