@@ -547,7 +547,8 @@ class QuerySet(object):
             # if start was specified, use it; otherwise retain current start
             if k.start is not None:
                 qs._start = int(k.start)
-            # if a slice bigger than available results is requested, cap it at actual max
+            # if a slice bigger than available results is requested, cap it at
+            # actual max
             qs._stop = min(k.stop, self.count())
 
             # because the slicing is done within the result cache,
@@ -565,27 +566,20 @@ class QuerySet(object):
         # cache based on the start of the current slice
         i = k + self._start
 
+        max_items = self.default_chunk_size
+        if self._stop is not None:
+            max_items = self._stop - self._start + 1
+
         # retrieve results in a chunk and cache them for individual item access
         if not self._result_cache:
-            max_items = self.default_chunk_size
-            if self._stop is not None:
-                max_items = self._stop - self._start + 1
-
             self._runQuery(self._start + 1, max_items=max_items)
 
         # if for some reason the requested item is not available
         # retrieve it individually (this should not generally be used)
         if i not in self._result_cache:
-            # if the requested item has not yet been retrieved, get it from eXist
-            item = self._db.retrieve(self.result_id, i, highlight=self._highlight_matches)
-            if self.model is None or self.query._distinct:
-                self._result_cache[i + self._start] = item.data
-            else:
-                obj = self._init_item(item.data)
-                # querytime disabled for now
-                # make queryTime method available when retrieving a single item
-                # setattr(obj, 'queryTime', self.queryTime)
-                self._result_cache[i + self._start] = obj
+            # if the requested item has not yet been retrieved, get it
+            # exist start index is 1-based instead of zero, so +1
+            self._runQuery(start=i + 1, max_items=max_items)
 
         return self._result_cache[i]
 
@@ -673,7 +667,7 @@ class QuerySet(object):
         else:
             session_opts['session'] = self._result_id
 
-        result = self._db.query(self.query.getQuery(), start,
+        result = self._db.query(self.query.getQuery(), start=start,
                                 how_many=max_items,
                                 result_type=self.query_result_type,
                                 **session_opts)
@@ -687,7 +681,7 @@ class QuerySet(object):
         # if items were retrieved, cache them
         if max_items != 0:
             self._result_cache = dict(enumerate(result.items,
-                                                start=self._start))
+                                                start=start - 1))
         return result
 
     def getDocument(self, docname):

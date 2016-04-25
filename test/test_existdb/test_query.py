@@ -120,6 +120,14 @@ class ExistQueryTest(unittest.TestCase):
         self.assertEqual("one", qs[2].id)
         self.assertEqual("xyz", qs[3].id)
 
+        # test getting single item beyond initial set
+        qs = self.qs.order_by('id')
+        # load initial result cache
+        self.assertEqual("abc", qs[0].id)
+        # retrieve individual items beyond the current cache
+        self.assertEqual("one", qs[2].id)
+        self.assertEqual("xyz", qs[3].id)
+
     def test_getitem_typeerror(self):
         self.assertRaises(TypeError, self.qs.__getitem__, "foo")
 
