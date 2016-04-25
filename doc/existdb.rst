@@ -54,6 +54,10 @@ Object-based searching
       :members:
 
 
+   .. autoclass:: XmlQuery
+      :members:
+
+
 Django tie-ins for :mod:`eulexistdb`
 ------------------------------------
 

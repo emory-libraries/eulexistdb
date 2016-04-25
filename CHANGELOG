@@ -5,6 +5,20 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.20
+----
+
+* Updated and tested for compatibility with eXist-db 2.2
+* Improved :class:`eulexistdb.query.QuerySet` efficiency when retrieving
+  results (now retrieves chunked results using eXist REST API,
+  making fewer requests to the server)
+* Simple xml-based query syntax now supported via
+  :class:`eulexistdb.query.XmlQuery`
+* Updated for compatibility with current versions of Django
+* Now uses `requests <http://docs.python-requests.org/>` for REST API
+  access and as XML-RPC transport for improved handling and connection
+  pooling.
+
 0.19.2
 ------
 
