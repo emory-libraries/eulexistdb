@@ -5,6 +5,18 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.21 (preliminary)
+------------------
+
+* Removed unused kwargs from db.ExistDB init method
+  `#1 <https://github.com/emory-libraries/eulexistdb/issues/1>`_
+* db.ExistDB `create_group` and create_account` methods now re-raise
+  unexpected errors
+  `#2 <https://github.com/emory-libraries/eulexistdb/issues/2>`_
+* Improved timeout handling; fixes timeouts on REST API requests
+  `#3 <https://github.com/emory-libraries/eulexistdb/issues/3>`_
+* bugfix: make Django settings actually optional
+
 0.20
 ----
 
