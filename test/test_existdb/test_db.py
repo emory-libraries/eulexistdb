@@ -30,6 +30,7 @@ from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
 class ExistDBTest(unittest.TestCase):
     COLLECTION = EXISTDB_TEST_COLLECTION
 
+
     def setUp(self):
         self.db = db.ExistDB(server_url=EXISTDB_SERVER_URL,
             username=EXISTDB_SERVER_USER, password=EXISTDB_SERVER_PASSWORD)
@@ -47,8 +48,17 @@ class ExistDBTest(unittest.TestCase):
         xml = '<root><field name="one">One</field><field name="two">Two</field><field name="three">Three</field><field name="four">Four</field><unicode> ϔ ϕ ϖ Ϛ Ϝ Ϟ Ϡ Ϣ ڡ ڢ ڣ ڤ ༀ </unicode></root>'
         self.db.load(xml, self.COLLECTION + '/xqry_test2.xml', True)
 
+        self.test_groups = []
+        self.test_users = []
+
     def tearDown(self):
         self.db.removeCollection(self.COLLECTION)
+
+        for group in self.test_groups:
+            self.db_admin.query('sm:remove-group("%s")' % group)
+        for user in self.test_users:
+            self.db_admin.query('sm:remove-account("%s")' % user)
+
 
     # TODO: test init with/without django.conf settings
 
@@ -424,3 +434,24 @@ class ExistDBTest(unittest.TestCase):
         self.assertEqual(492, perms.permissions)
 
     # can't figure out how to test timeout init param...
+
+    def test_create_account(self):
+        self.test_users.append('foo')
+        self.test_groups.append('foo')
+        # admin should be able to create a user
+        self.assertTrue(self.db_admin.create_account('foo', 'pass', 'foo'))
+        # trying to create same account again should return false
+        self.assertFalse(self.db_admin.create_account('foo', 'pass', 'foo'))
+        # non-admin should not be able to create an account
+        self.assertRaises(db.ExistDBException, self.db.create_account,
+                          'nodice', 'pass', 'nodice')
+
+    def test_create_group(self):
+        self.test_groups.append('foo')
+        # admin should be able to create a group
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # trying to create same group again should return false
+        self.assertFalse(self.db_admin.create_group('foo'))
+        # non-admin should not be able to create an account
+        self.assertRaises(db.ExistDBException, self.db.create_group,
+                          'not-a-group')

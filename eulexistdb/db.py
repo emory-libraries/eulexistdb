@@ -676,26 +676,32 @@ class ExistDB(object):
     # admin functionality; where should this live?
 
     def create_group(self, group):
-        # create a group; returns true if the group was created,
-        # false if the group already exists
+        '''Create a group; returns true if the group was created,
+        false if the group already exists.  Any other exist exception
+        is re-raised.'''
         try:
-            result = self.query('sm:create-group("%s")' % group);
+            self.query('sm:create-group("%s")' % group);
             # returns a query result with no information on success
             return True
         except ExistDBException as err:
             if 'group with name %s already exists' % group in err.message():
                 return False
+            raise
 
     def create_account(self, username, password, groups):
+        '''Create a user account; returns true if the user was created,
+        false if the user already exists.  Any other exist exception
+        is re-raised.'''
         try:
-            result = self.query('sm:create-account("%s", "%s", "%s")' % \
-                (username, password, groups))
+            self.query('sm:create-account("%s", "%s", "%s")' % \
+                      (username, password, groups))
             return True
         except ExistDBException as err:
             if 'user account with username %s already exists' % username in err.message():
                 return False
             # NOTE: might be possible to also get a group error here
             # perhaps just check for 'already exists' ?
+            raise
 
 
 class ExistPermissions:
