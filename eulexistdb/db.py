@@ -164,22 +164,32 @@ class ExistDB(object):
 
         # if server url or timeout are not set, attempt to get from django settings
         if self.exist_url is None or timeout == ExistDB.DEFAULT_TIMEOUT:
+            # Django integration is NOT required, so check for settings
+            # but don't error if they are not available.
             try:
-                from django.conf import settings
-                if self.exist_url is None:
-                    self.exist_url = self._serverurl_from_djangoconf()
+                # if django is not installed, we should get an import error
+                import django
+                # from django.core.exceptions import ImproperlyConfigured
+                try:
+                    # if django is installed but not used, we get an
+                    # "improperly configured" error
+                    from django.conf import settings
+                    if self.exist_url is None:
+                        self.exist_url = self._serverurl_from_djangoconf()
 
-                # if the default timeout is used, check for a timeout
-                # in django exist settings
-                if timeout == ExistDB.DEFAULT_TIMEOUT:
-                    timeout = getattr(settings, 'EXISTDB_TIMEOUT',
-                                      ExistDB.DEFAULT_TIMEOUT)
+                    # if the default timeout is used, check for a timeout
+                    # in django exist settings
+                    if timeout == ExistDB.DEFAULT_TIMEOUT:
+                        timeout = getattr(settings, 'EXISTDB_TIMEOUT',
+                                          ExistDB.DEFAULT_TIMEOUT)
 
-                # if a keep-alive option is not specified, check
-                # for a django option to configure the session
-                if keep_alive is None:
-                    keep_alive = getattr(settings,
-                                         'EXISTDB_SESSION_KEEP_ALIVE', None)
+                    # if a keep-alive option is not specified, check
+                    # for a django option to configure the session
+                    if keep_alive is None:
+                        keep_alive = getattr(settings,
+                                             'EXISTDB_SESSION_KEEP_ALIVE', None)
+                except django.core.exceptions.ImproperlyConfigured:
+                    pass
             except ImportError:
                 pass
 
