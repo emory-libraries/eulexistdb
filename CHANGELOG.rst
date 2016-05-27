@@ -10,7 +10,7 @@ any necessary information about installation or upgrade notes.
 
 * Removed unused kwargs from db.ExistDB init method
   `#1 <https://github.com/emory-libraries/eulexistdb/issues/1>`_
-* db.ExistDB `create_group` and create_account` methods now re-raise
+* db.ExistDB ``create_group`` and ``create_account`` methods now re-raise
   unexpected errors
   `#2 <https://github.com/emory-libraries/eulexistdb/issues/2>`_
 * Improved timeout handling; fixes timeouts on REST API requests
