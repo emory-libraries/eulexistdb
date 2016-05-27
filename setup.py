@@ -46,6 +46,7 @@ setup(
             'unittest2',  # optional testrunner in testutil
             'tox',
             'django-debug-toolbar',
+            'mock'
         ]
     },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',

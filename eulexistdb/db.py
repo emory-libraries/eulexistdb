@@ -141,9 +141,14 @@ class ExistDB(object):
       with EXISTDB_SESSION_KEEP_ALIVE
     """
 
+    # default timeout, to allow distinguishing between no timeout
+    # specified and an explicit timeout of None (e.g., explicit timeout
+    # None should override a configured EXISTDB_TIMEOUT)
+    DEFAULT_TIMEOUT = object()
+
     def __init__(self, server_url=None, username=None, password=None,
                  resultType=None, encoding='UTF-8', verbose=False,
-                 keep_alive=None, **kwargs):
+                 keep_alive=None, timeout=DEFAULT_TIMEOUT):
 
         self.resultType = resultType or QueryResult
         datetime_opt = {'use_datetime': True}
@@ -151,9 +156,6 @@ class ExistDB(object):
         # distinguish between timeout not set and no timeout, to allow
         # easily setting a timeout of None and have it override any
         # configured EXISTDB_TIMEOUT
-        timeout = None
-        if 'timeout' in kwargs:
-            timeout = kwargs['timeout']
 
         # add username/password to url if set
         self.exist_url = server_url
@@ -161,14 +163,23 @@ class ExistDB(object):
         self.password = password
 
         # if server url or timeout are not set, attempt to get from django settings
-        if self.exist_url is None or 'timeout' not in kwargs:
+        if self.exist_url is None or timeout == ExistDB.DEFAULT_TIMEOUT:
             try:
                 from django.conf import settings
                 if self.exist_url is None:
                     self.exist_url = self._serverurl_from_djangoconf()
 
-                if 'timeout' not in kwargs:
-                    timeout = getattr(settings, 'EXISTDB_TIMEOUT', None)
+                # if the default timeout is used, check for a timeout
+                # in django exist settings
+                if timeout == ExistDB.DEFAULT_TIMEOUT:
+                    timeout = getattr(settings, 'EXISTDB_TIMEOUT',
+                                      ExistDB.DEFAULT_TIMEOUT)
+
+                # if a keep-alive option is not specified, check
+                # for a django option to configure the session
+                if keep_alive is None:
+                    keep_alive = getattr(settings,
+                                         'EXISTDB_SESSION_KEEP_ALIVE', None)
             except ImportError:
                 pass
 
@@ -182,11 +193,11 @@ class ExistDB(object):
         self.session = requests.Session()
         if self.username is not None and self.password is not None:
             self.session.auth = (self.username, self.password)
-        # if a keep-alive option is specified, configure the session
-        if keep_alive is None:
-            keep_alive = getattr(settings, 'EXISTDB_SESSION_KEEP_ALIVE', None)
         if keep_alive is not None:
             self.session.keep_alive = keep_alive
+        self.session_opts = {}
+        if timeout is not ExistDB.DEFAULT_TIMEOUT:
+            self.session_opts['timeout'] = timeout
 
         transport = RequestsTransport(timeout=timeout, session=self.session,
                                       url=self.exist_url, **datetime_opt)
@@ -243,7 +254,8 @@ class ExistDB(object):
         """
         # REST api; need an error wrapper?
         logger.debug('getDocument %s' % self.restapi_path(name))
-        response = self.session.get(self.restapi_path(name), stream=False)
+        response = self.session.get(self.restapi_path(name), stream=False,
+                                    **self.session_opts)
         if response.status_code == requests.codes.ok:
             return response.content
         if response.status_code == requests.codes.not_found:
@@ -374,7 +386,8 @@ class ExistDB(object):
 
         logger.debug('parse %s overwrite=%s' % (path, overwrite))
         # NOTE: overwrite is assumed by REST
-        response = self.session.put(self.restapi_path(path), xml, stream=False)
+        response = self.session.put(self.restapi_path(path), xml, stream=False,
+                                    **self.session_opts)
         if response.status_code == requests.codes.bad_request:
             # response is HTML, not xml...
             # could use regex or beautifulsoup to pull out the error
@@ -453,7 +466,8 @@ class ExistDB(object):
             debug_query = ''
         logger.debug('query %s%s' % (opts, debug_query))
 
-        response = self.session.get(self.restapi_path(''), params=params, stream=False)
+        response = self.session.get(self.restapi_path(''), params=params,
+                                    stream=False, **self.session_opts)
 
         if response.status_code == requests.codes.ok:
             # successful release doesn't return any content
@@ -780,9 +794,11 @@ class RequestsTransport(xmlrpclib.Transport):
     # boolean flag to indicate whether https should be used or not
     use_https = False
 
-    def __init__(self, timeout=None, session=None, url=None, *args, **kwargs):
-        if timeout is None:
-            timeout = socket._GLOBAL_DEFAULT_TIMEOUT
+    def __init__(self, timeout=ExistDB.DEFAULT_TIMEOUT, session=None,
+                 url=None, *args, **kwargs):
+        # if default timeout is requested, use the global socket default
+        if timeout is ExistDB.DEFAULT_TIMEOUT:
+            timeout = socket.getdefaulttimeout()
         xmlrpclib.Transport.__init__(self, *args, **kwargs)
         self.timeout = timeout
         # NOTE: assumues that if basic auth is needed, it is set
@@ -795,7 +811,6 @@ class RequestsTransport(xmlrpclib.Transport):
             'User-Agent': self.user_agent,
             'Content-Type': 'application/xml'
         })
-
 
         # determine whether https is needed based on the url
         if url is not None:
@@ -810,7 +825,7 @@ class RequestsTransport(xmlrpclib.Transport):
             resp = self.session.post(url, data=request_body,
                 timeout=self.timeout)
         except Exception:
-            raise # something went wrong
+            raise  # something went wrong
         else:
             try:
                 resp.raise_for_status()

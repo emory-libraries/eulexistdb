@@ -19,8 +19,10 @@ import unittest
 from urlparse import urlsplit, urlunsplit
 from django.conf import settings
 from django.test.utils import override_settings
+from mock import patch
 
 from eulexistdb import db
+from eulexistdb.exceptions import ExistDBTimeout
 
 from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
     EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION, \
@@ -78,7 +80,6 @@ class ExistDBTest(unittest.TestCase):
         if not hasattr(settings, 'EXISTDB_SERVER_USER'):
             settings.EXISTDB_SERVER_USER = 'username'
         if not hasattr(settings, 'EXISTDB_SERVER_PASSWORD'):
-            print "DEBUG: setting exist password on settings"
             settings.EXISTDB_SERVER_PASSWORD = 'pass'
 
         # these are irrelevant now, since not included in the url
@@ -433,7 +434,61 @@ class ExistDBTest(unittest.TestCase):
         perms = self.db.getPermissions('/db' + self.COLLECTION + '/hello.xml')
         self.assertEqual(492, perms.permissions)
 
-    # can't figure out how to test timeout init param...
+    def test_timeout(self):
+        # set timeout low to confirm timeout exception is raised
+        timeoutdb = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+                               timeout=1)
+        self.assertRaises(ExistDBTimeout, timeoutdb.query, '//*')
+
+        # use mocks to test initialization/timeout parameters
+        with patch('eulexistdb.db.socket') as mocksocket:
+            timeout_server = 'http://nonexistent/exist:8080/timeout'
+            # default timeout
+            timeoutdb = db.ExistDB(server_url=timeout_server)
+            mocksocket.getdefaulttimeout.assert_called_with()
+            mocksocket.reset_mock()
+
+            # timeout specified
+            with patch('eulexistdb.db.requests') as mockrequests:
+                timeout = 3
+                timeoutdb = db.ExistDB(server_url=timeout_server,
+                                       timeout=timeout)
+                mocksocket.getdefaulttimeout.assert_not_called()
+
+                # session options used for rest api should have timeout set
+                self.assertEqual(timeout, timeoutdb.session_opts['timeout'])
+                # xmlrpc transport should use requested timeout
+                xmlrpc_session = mockrequests.Session.return_value
+                # requires a valid xmlrpc response or unmarshalling fails
+                xmlrpc_session.post.return_value.text = '''<methodResponse>
+                <params><param/></params></methodResponse>'''
+                timeoutdb.server.ping()
+                args, kwargs = xmlrpc_session.post.call_args
+                self.assertEqual(timeout, kwargs['timeout'])
+
+                # django settings
+                django_timeout = 4
+                with override_settings(EXISTDB_TIMEOUT=django_timeout):
+                    # no timeout specified, should use settings
+                    timeoutdb = db.ExistDB(server_url=timeout_server)
+
+                    # session used for rest api should use django timeout
+                    self.assertEqual(django_timeout,
+                                     timeoutdb.session_opts['timeout'])
+                    # xmlrpc transport should use django timeout
+                    timeoutdb.server.ping()
+                    args, kwargs = xmlrpc_session.post.call_args
+                    self.assertEqual(django_timeout, kwargs['timeout'])
+
+                    # explicit None should take precedence over django settings
+                    no_timeout = None
+                    timeoutdb = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+                                           timeout=no_timeout)
+                    self.assertEqual(no_timeout,
+                                     timeoutdb.session_opts['timeout'])
+                    timeoutdb.server.ping()
+                    args, kwargs = xmlrpc_session.post.call_args
+                    self.assertEqual(no_timeout, kwargs['timeout'])
 
     def test_create_account(self):
         self.test_users.append('foo')
