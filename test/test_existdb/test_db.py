@@ -438,7 +438,7 @@ class ExistDBTest(unittest.TestCase):
         # set timeout low to confirm timeout exception is raised
         timeoutdb = db.ExistDB(server_url=EXISTDB_SERVER_URL,
                                timeout=1)
-        self.assertRaises(ExistDBTimeout, timeoutdb.query, '//*')
+        self.assertRaises(ExistDBTimeout, timeoutdb.query, 'util:wait(10000)')
 
         # use mocks to test initialization/timeout parameters
         with patch('eulexistdb.db.socket') as mocksocket:
