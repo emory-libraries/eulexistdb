@@ -53,6 +53,10 @@ class ExistDBTest(unittest.TestCase):
         self.test_groups = []
         self.test_users = []
 
+        xml = '<root xml:id="A"/>'
+        self.db.load(xml, self.COLLECTION + '/xqry_test3.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test4.xml', True)
+
     def tearDown(self):
         self.db.removeCollection(self.COLLECTION)
 
@@ -191,7 +195,7 @@ class ExistDBTest(unittest.TestCase):
             "collection owner returned (expected '%s', got %s" % \
                 (EXISTDB_SERVER_USER, info['owner']))
         # untested - group, created, permissions
-        self.assertEqual(3, len(info['documents']), "collection has 3 documents (3 test documents loaded)")
+        self.assertEqual(5, len(info['documents']), "collection has 5 documents (5 test documents loaded)")
         self.assertEqual([], info['collections'], "collection has no subcollections")
 
         # attempting to describe a collection that isn't in the db
@@ -243,6 +247,17 @@ class ExistDBTest(unittest.TestCase):
         # xqry = u'collection("/db%s")//root[contains(unicode, "%s")]' % (self.COLLECTION, unicode_str)
         # qres = self.db.query(xqry)
         # self.assertEquals(qres.hits, 1)
+
+    def test_query_duplicate_ids(self):
+        """
+        Test xquery with duplicate IDs in result. A query that returns
+        multiple XML documents that have the same xml:id value
+        appearing in them should not result in a query failure.
+        """
+        xqry = 'for $x in collection("/db%s")//root[@xml:id] return $x' % (
+            self.COLLECTION, )
+        qres = self.db.query(xqry)
+        self.assertEquals(qres.hits, 2)
 
     def test_query_bad_xqry(self):
         """Check that an invalid xquery raises an exception"""
