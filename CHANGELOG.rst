@@ -16,6 +16,10 @@ any necessary information about installation or upgrade notes.
 * Improved timeout handling; fixes timeouts on REST API requests
   `#3 <https://github.com/emory-libraries/eulexistdb/issues/3>`_
 * bugfix: make Django settings actually optional
+* Require eulxml 1.1.2 to handle duplicate ``xml:id`` attributes included
+  in a single exist result.  (Duplicate id test case contributed by
+  `@lddubeau <https://github.com/lddubeau>`_ in
+  `PR #5 <https://github.com/emory-libraries/eulexistdb/pull/5>`_ )
 
 0.20
 ----

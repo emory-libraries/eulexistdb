@@ -34,7 +34,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'requests',
-        'eulxml>=0.18.0',
+        'eulxml>=1.1.2',
     ],
     extras_require={
         'django': ['Django'],
