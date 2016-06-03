@@ -94,6 +94,7 @@ import urlparse
 import warnings
 import xmlrpclib
 
+from . import patch
 from eulxml import xmlmap
 from eulexistdb.exceptions import ExistDBException, ExistDBTimeout
 
@@ -845,6 +846,13 @@ class RequestsTransport(xmlrpclib.Transport):
             else:
                 return self.parse_response(resp)
 
+
+    def getparser(self):
+        # Patch the parser to prevent errors on Apache's extended
+        # attributes. See the code in the patch module for details.
+        parser, unmarshaller = xmlrpclib.Transport.getparser(self)
+        return patch.XMLRpcLibPatch.apply(parser, unmarshaller)
+
     def parse_response(self, resp):
         """
         Parse the xmlrpc response.
@@ -861,4 +869,3 @@ class RequestsTransport(xmlrpclib.Transport):
         """
         scheme = 'https' if self.use_https else 'http'
         return '%s://%s%s' % (scheme, host, handler)
-
