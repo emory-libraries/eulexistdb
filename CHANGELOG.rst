@@ -24,6 +24,9 @@ any necessary information about installation or upgrade notes.
   Contributed by  `@lddubeau <https://github.com/lddubeau>`_ in
   `PR #6 <https://github.com/emory-libraries/eulexistdb/pull/6>`_,
   resolves `#4 <https://github.com/emory-libraries/eulexistdb/issues/4>`_
+* Removed ``overwrite`` option from :meth:`eulexistdb.ExistDB.load`
+  (no longer applicable under the REST API, and misleading)
+  `#9 <https://github.com/emory-libraries/eulexistdb/issues/9>`_
 
 0.20
 ----

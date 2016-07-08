@@ -44,20 +44,20 @@ class ExistDBTest(unittest.TestCase):
             password=EXISTDB_SERVER_ADMIN_PASSWORD)
         self.db.createCollection(self.COLLECTION, True)
 
-        self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml', True)
+        self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml')
 
         xml = '<root><element name="one">One</element><element name="two">Two</element><element name="two">Three</element></root>'
-        self.db.load(xml, self.COLLECTION + '/xqry_test.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test.xml')
 
         xml = '<root><field name="one">One</field><field name="two">Two</field><field name="three">Three</field><field name="four">Four</field><unicode> ϔ ϕ ϖ Ϛ Ϝ Ϟ Ϡ Ϣ ڡ ڢ ڣ ڤ ༀ </unicode></root>'
-        self.db.load(xml, self.COLLECTION + '/xqry_test2.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test2.xml')
 
         self.test_groups = []
         self.test_users = []
 
         xml = '<root xml:id="A"/>'
-        self.db.load(xml, self.COLLECTION + '/xqry_test3.xml', True)
-        self.db.load(xml, self.COLLECTION + '/xqry_test4.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test3.xml')
+        self.db.load(xml, self.COLLECTION + '/xqry_test4.xml')
 
     def tearDown(self):
         self.db.removeCollection(self.COLLECTION)

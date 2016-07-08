@@ -288,7 +288,6 @@ class ExistDB(object):
         "Alias for :meth:`getDocument`."
         return self.getDocument(name)
 
-
     def createCollection(self, collection_name, overwrite=False):
         """Create a new collection in the database.
 
@@ -393,19 +392,18 @@ class ExistDB(object):
         logger.debug('getCollectionDesc %s' % collection_name)
         return self.server.getCollectionDesc(collection_name)
 
-    def load(self, xml, path, overwrite=False):
+    def load(self, xml, path):
         """Insert or overwrite a document in the database.
 
         :param xml: string or file object with the document contents
         :param path: destination location in the database
-        :param overwrite: True to allow overwriting an existing document
         :rtype: boolean indicating success
 
         """
         if hasattr(xml, 'read'):
             xml = xml.read()
 
-        logger.debug('parse %s overwrite=%s' % (path, overwrite))
+        logger.debug('load %s', path)
         # NOTE: overwrite is assumed by REST
         response = self.session.put(self.restapi_path(path), xml, stream=False,
                                     **self.session_opts)
@@ -634,8 +632,7 @@ class ExistDB(object):
         """
         return ExistPermissions(self.server.getPermissions(resource))
 
-
-    def loadCollectionIndex(self, collection_name, index, overwrite=True):
+    def loadCollectionIndex(self, collection_name, index):
         """Load an index configuration for the specified collection.
         Creates the eXist system config collection if it is not already there,
         and loads the specified index config file, as per eXist collection and
@@ -643,7 +640,6 @@ class ExistDB(object):
 
         :param collection_name: name of the collection to be indexed
         :param index: string or file object with the document contents (as used by :meth:`load`)
-        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)
         :rtype: boolean indicating success
 
         """
@@ -655,7 +651,7 @@ class ExistDB(object):
             self.createCollection(index_collection)
 
         # load index content as the collection index configuration file
-        return self.load(index, self._collectionIndexPath(collection_name), overwrite)
+        return self.load(index, self._collectionIndexPath(collection_name))
 
     def removeCollectionIndex(self, collection_name):
         """Remove index configuration for the specified collection.
@@ -855,7 +851,6 @@ class RequestsTransport(xmlrpclib.Transport):
                                               str(err), resp.headers)
             else:
                 return self.parse_response(resp)
-
 
     def getparser(self):
         # Patch the parser to prevent errors on Apache's extended

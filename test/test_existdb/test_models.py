@@ -57,9 +57,9 @@ class ModelTest(unittest.TestCase):
 
         test_dir = os.path.dirname(os.path.abspath(__file__))
         fixture = os.path.join(test_dir, 'exist_fixtures', 'goodbye-english.xml')
-        loaded = self.db.load(open(fixture), self.COLLECTION + '/goodbye-english.xml', True)
+        loaded = self.db.load(open(fixture), self.COLLECTION + '/goodbye-english.xml')
         fixture = os.path.join(test_dir, 'exist_fixtures', 'goodbye-french.xml')
-        loaded = self.db.load(open(fixture), self.COLLECTION + '/goodbye-french.xml', True)
+        loaded = self.db.load(open(fixture), self.COLLECTION + '/goodbye-french.xml')
 
         # temporarily set test collection as root exist collection
         self._root_collection = settings.EXISTDB_ROOT_COLLECTION
