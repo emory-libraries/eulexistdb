@@ -16,12 +16,14 @@
 #   limitations under the License.
 
 import unittest
+import xmlrpclib
 from urlparse import urlsplit, urlunsplit
 from django.conf import settings
 from django.test.utils import override_settings
 from mock import patch
 
 from eulexistdb import db
+from eulexistdb import patch as db_patch
 from eulexistdb.exceptions import ExistDBTimeout
 
 from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
@@ -65,6 +67,8 @@ class ExistDBTest(unittest.TestCase):
         for user in self.test_users:
             self.db_admin.query('sm:remove-account("%s")' % user)
 
+        # Start with a clean slate.
+        db_patch.requested_patches = set()
 
     # TODO: test init with/without django.conf settings
 
@@ -525,3 +529,25 @@ class ExistDBTest(unittest.TestCase):
         # non-admin should not be able to create an account
         self.assertRaises(db.ExistDBException, self.db.create_group,
                           'not-a-group')
+
+    def test_xmlrpclib_failure_without_patch(self):
+        """
+        Test that without the XMLRpcLibPatch, we get a failure when
+        xmlrpclib tries to parse a response that contains Apache's
+        extended types.
+        """
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # The group is actually removed but the response cannot be parsed.
+        self.assertRaises(xmlrpclib.ResponseError,
+                          self.db_admin.server.removeGroup, 'foo')
+
+    def test_xmlrpclib_failure_without_patch(self):
+        """
+        Test that without the XMLRpcLibPatch, we get a failure when
+        xmlrpclib tries to parse a response that contains Apache's
+        extended types.
+        """
+        db_patch.request_patching(db_patch.XMLRpcLibPatch)
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # The group is actually removed but the response cannot be parsed.
+        self.db_admin.server.removeGroup('foo')
