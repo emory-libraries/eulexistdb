@@ -67,10 +67,20 @@ of options like this::
 
     EXISTDB_FULLTEXT_OPTIONS = {'default-operator': 'and'}
 
-.. note::
+.. Note::
 
-  Full-text query options are only available in very recent versions of eXist.
+    Python :mod:`xmlrpclib` does not support extended types, some of which
+    are used in eXist returns.  This does not currently affect the
+    functionality exposed within :class:`ExistDB`, but may cause issues
+    if you use the :attr:`ExistDB.server` XML-RPC connection directly
+    for other available eXist XML-RPC methods.   If you do make use of
+    those, you may want to enable XML-RPC patching to handle the return
+    types::
 
+        from eulexistdb import patch
+        patch.request_patching(patch.XMLRpcLibPatch)
+
+---
 
 If you are writing unit tests against code that uses
 :mod:`eulexistdb`, you may want to take advantage of
