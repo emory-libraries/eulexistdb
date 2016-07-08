@@ -20,6 +20,10 @@ any necessary information about installation or upgrade notes.
   in a single exist result.  (Duplicate id test case contributed by
   `@lddubeau <https://github.com/lddubeau>`_ in
   `PR #5 <https://github.com/emory-libraries/eulexistdb/pull/5>`_ )
+* Add opt-in patch for extended type handling in xmlrpc.
+  Contributed by  `@lddubeau <https://github.com/lddubeau>`_ in
+  `PR #6 <https://github.com/emory-libraries/eulexistdb/pull/6>`_,
+  resolves `#4 <https://github.com/emory-libraries/eulexistdb/issues/4>`_
 
 0.20
 ----
