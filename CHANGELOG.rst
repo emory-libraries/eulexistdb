@@ -30,10 +30,15 @@ any necessary information about installation or upgrade notes.
 * Improved django-debug-toolbar integration. Addresses
   `#7 <https://github.com/emory-libraries/eulexistdb/issues/7>`_
   and `#8 <https://github.com/emory-libraries/eulexistdb/issues/8>`_.
+* Updated `Existdb.DB` initialization parameters to restore support for
+  xmlrpc-style urls with username and password used in previous versions
+  of eulexistdb. `#10 <https://github.com/emory-libraries/eulexistdb/issues/10>`_
 
 0.20
 ----
 
+* **NOTE:** :class:`Existdb.DB` initialization parameters has changed;
+  server url is no longer expected to include full xmlrpc path.
 * Updated and tested for compatibility with eXist-db 2.2
 * Improved :class:`eulexistdb.query.QuerySet` efficiency when retrieving
   results (now retrieves chunked results using eXist REST API,

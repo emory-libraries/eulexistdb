@@ -149,8 +149,15 @@ class ExistDB(object):
     information about where the server is, to be used in later
     communications.
 
-    :param server_url: The XML-RPC endpoint of the server, typically
-                       ``/xmlrpc`` within the server root.
+    :param server_url: The eXist server URL.  New syntax (as of 0.20)
+        expects primary eXist url and *not* the ``/xmlrpc`` endpoint;
+        for backwards compatibility, urls that include `/xmlrpc``
+        are still handled, and will be parsed to set exist server path
+        as well as username and password if specified.  Note that username
+        and password parameters take precedence over username
+        and password in the server url if both are specified.
+    :param username: exist username, if any
+    :param password: exist user password, if any
     :param resultType: The class to use for returning :meth:`query` results;
                        defaults to :class:`QueryResult`
     :param encoding:   The encoding used to communicate with the server;
