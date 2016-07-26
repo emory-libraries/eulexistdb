@@ -1,6 +1,7 @@
 build
 dist
 *.egg-info
+.eggs
 *.pyc
 test/localsettings.py
 coverage.xml
