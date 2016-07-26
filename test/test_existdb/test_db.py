@@ -137,6 +137,41 @@ class ExistDBTest(unittest.TestCase):
         settings.EXISTDB_SERVER_USER = None
         self.assertEqual(settings.EXISTDB_SERVER_URL, self.db._serverurl_from_djangoconf())
 
+    def test_init_old_format(self):
+        # support init with old-style xmlrpc url optionally including
+        # username and password
+        user = 'exister'
+        password = 'tryme'
+        url = 'example.com:8080/exist'
+        test_db = db.ExistDB('http://%s:%s@%s/xmlrpc' % (user, password, url))
+
+        self.assertEqual(user, test_db.username)
+        self.assertEqual(password, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # specified username/password args shoudl override xmlrpc url
+        override_user = 'existentialist'
+        override_password = 'sartre'
+        test_db = db.ExistDB('http://%s:%s@%s/xmlrpc' % (user, password, url),
+                             username=override_user, password=override_password)
+        self.assertEqual(override_user, test_db.username)
+        self.assertEqual(override_password, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # no username/password
+        test_db = db.ExistDB('http://%s/xmlrpc' % (url))
+        self.assertEqual(None, test_db.username)
+        self.assertEqual(None, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # no port, ssl
+        url = 'example.com/exist'
+        test_db = db.ExistDB('https://%s/xmlrpc' % (url))
+        self.assertEqual('https://%s' % url, test_db.exist_url)
+
+
+
+
     def test_getDocument(self):
         """Test retrieving a full document from eXist"""
         xml = self.db.getDocument(self.COLLECTION + "/hello.xml")

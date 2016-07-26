@@ -142,7 +142,6 @@ if Signal is not None:
         "time_taken", "name", "return_value", "args", "kwargs"])
 
 
-
 class ExistDB(object):
     """Connect to an eXist database, and manipulate and query it.
 
@@ -170,6 +169,10 @@ class ExistDB(object):
     # None should override a configured EXISTDB_TIMEOUT)
     DEFAULT_TIMEOUT = object()
 
+    exist_url = None
+    username = None
+    password = None
+
     def __init__(self, server_url=None, username=None, password=None,
                  resultType=None, encoding='UTF-8', verbose=False,
                  keep_alive=None, timeout=DEFAULT_TIMEOUT):
@@ -181,10 +184,17 @@ class ExistDB(object):
         # easily setting a timeout of None and have it override any
         # configured EXISTDB_TIMEOUT
 
-        # add username/password to url if set
-        self.exist_url = server_url
-        self.username = username
-        self.password = password
+        if 'xmlrpc' in server_url:
+            self._init_from_xmlrpc_url(server_url)
+        else:
+            # add username/password to url if set
+            self.exist_url = server_url
+
+        # if username/password are supplied, set them
+        if username is not None:
+            self.username = username
+        if password is not None:
+            self.password = password
 
         # if server url or timeout are not set, attempt to get from django settings
         if self.exist_url is None or timeout == ExistDB.DEFAULT_TIMEOUT:
@@ -268,6 +278,25 @@ class ExistDB(object):
         except ImportError:
             pass
 
+    def _init_from_xmlrpc_url(self, url):
+        # map old-style xmlrpc url with username/password to
+        # new-style initialization
+        parsed = urlparse.urlparse(url)
+        # add username/password if set
+        if parsed.username:
+            self.username = parsed.username
+        if parsed.password:
+            self.password = parsed.password
+
+        # construct base exist url, without xmlrpc extension
+        path = parsed.path.replace('/xmlrpc', '')
+        # parsed netloc includes username & password; reconstruct without
+        if parsed.port is not None:
+            netloc = '%s:%s' % (parsed.hostname, parsed.port)
+        else:
+            netloc = parsed.hostname
+        self.exist_url = '%s://%s%s' % (parsed.scheme, netloc, path)
+
     def restapi_path(self, path):
         # generate rest path to a collection or document
         # FIXME: getting duplicated db path, handle this better
@@ -277,7 +306,6 @@ class ExistDB(object):
         if not path.startswith('/'):
             path = '/%s' % path
         return '%s/rest/db%s' % (self.exist_url.rstrip('/'), path)
-
 
     def getDocument(self, name):
         """Retrieve a document from the database.
