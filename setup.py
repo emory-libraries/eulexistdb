@@ -31,7 +31,6 @@ test_requirements = [
     'nose',
     'coverage',
     'tox',
-    'django-debug-toolbar',
     'mock'
 ]
 
@@ -40,7 +39,7 @@ if sys.version_info < (2, 7):
     # optional testrunner in testutil
     test_requirements.append('unittest2')
 
-dev_requirements = test_requirements + ['Django']
+dev_requirements = test_requirements + ['Django', 'django-debug-toolbar']
 
 
 setup(
