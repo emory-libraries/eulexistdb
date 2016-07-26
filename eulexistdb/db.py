@@ -99,10 +99,16 @@ import httplib
 import logging
 import requests
 import socket
+import time
 from urllib import unquote_plus, splittype
 import urlparse
 import warnings
 import xmlrpclib
+
+try:
+    from django.dispatch import Signal
+except ImportError:
+    Signal = None
 
 from . import patch
 from eulxml import xmlmap
@@ -113,6 +119,7 @@ __all__ = ['ExistDB', 'QueryResult', 'ExistDBException', 'EXISTDB_NAMESPACE']
 logger = logging.getLogger(__name__)
 
 EXISTDB_NAMESPACE = 'http://exist.sourceforge.net/NS/exist'
+
 
 def _wrap_xmlrpc_fault(f):
     @wraps(f)
@@ -128,6 +135,12 @@ def _wrap_xmlrpc_fault(f):
         # occasionally getting this error (so far exclusively in unit tests)
         # error: [Errno 104] Connection reset by peer
     return wrapper
+
+xquery_called = None
+if Signal is not None:
+    xquery_called = Signal(providing_args=[
+        "time_taken", "name", "return_value", "args", "kwargs"])
+
 
 
 class ExistDB(object):
@@ -484,9 +497,17 @@ class ExistDB(object):
         else:
             debug_query = ''
         logger.debug('query %s%s' % (opts, debug_query))
-
+        start = time.time()
         response = self.session.get(self.restapi_path(''), params=params,
                                     stream=False, **self.session_opts)
+
+        if xquery_called is not None:
+            args = {'xquery': xquery, 'start': start, 'how_many': how_many,
+                    'cache': cache, 'session': session, 'release': release,
+                    'result_type': result_type}
+            xquery_called.send(
+                sender=self.__class__, time_taken=time.time() - start,
+                name='query', return_value=response, args=[], kwargs=args)
 
         if response.status_code == requests.codes.ok:
             # successful release doesn't return any content

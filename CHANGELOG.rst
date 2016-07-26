@@ -27,6 +27,9 @@ any necessary information about installation or upgrade notes.
 * Removed ``overwrite`` option from :meth:`eulexistdb.ExistDB.load`
   (no longer applicable under the REST API, and misleading)
   `#9 <https://github.com/emory-libraries/eulexistdb/issues/9>`_
+* Improved django-debug-toolbar integration. Addresses
+  `#7 <https://github.com/emory-libraries/eulexistdb/issues/7>`_
+  and `#8 <https://github.com/emory-libraries/eulexistdb/issues/8>`_.
 
 0.20
 ----

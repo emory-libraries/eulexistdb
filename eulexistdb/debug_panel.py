@@ -22,23 +22,6 @@ from eulexistdb import db
 # implementation based on django-debug-toolbar cache panel
 
 
-xquery_called = Signal(providing_args=[
-    "time_taken", "name", "return_value", "args", "kwargs"])
-
-
-class ExistDBTracker(db.ExistDB):
-    # subclass ExistDB in order to track query calls
-
-    def query(self, *args, **kwargs):
-        start = time.time()
-        value = super(ExistDBTracker, self).query(*args, **kwargs)
-        total_time = time.time() - start
-        xquery_called.send(sender=self.__class__, time_taken=total_time,
-                           name='query', return_value=value,
-                           args=args, kwargs=kwargs)
-        return value
-
-
 class ExistDBPanel(Panel):
 
     name = 'ExistDB'
@@ -51,7 +34,7 @@ class ExistDBPanel(Panel):
         self.total_time = 0
         self.queries = []
 
-        xquery_called.connect(self._store_xquery_info)
+        db.xquery_called.connect(self._store_xquery_info)
 
     def _store_xquery_info(self, sender, name=None, time_taken=0,
                           return_value=None, args=None, kwargs=None,
@@ -64,6 +47,11 @@ class ExistDBPanel(Panel):
         # use that for display
         if hasattr(return_value, 'serialize'):
             return_value = return_value.serialize()
+
+        # remove empty values from kwargs, to simplify display
+        for k, val in list(kwargs.iteritems()):
+            if val is None:
+                del args[k]
 
         time_taken *= 1000
         self.total_time += time_taken
@@ -85,19 +73,10 @@ class ExistDBPanel(Panel):
         return self.name
 
     def nav_subtitle(self):
-        return "%(xqueries)d queries in %(time).2fms" % \
-               {'xqueries': len(self.queries), 'time': self.total_time}
-
-    def enable_instrumentation(self):
-        # patch tracking existdb subclass in for the real one
-        db.RealExistDB = db.ExistDB
-        eulexistdb.db.ExistDB = ExistDBTracker
-        # also patch into the manager module (already imported)
-        eulexistdb.manager.ExistDB = db.ExistDB
-
-    def disable_instrumentation(self):
-        db.ExistDB = db.RealExistDB
-        eulexistdb.manager.ExistDB = db.ExistDB
+        return "%(xqueries)d quer%(plural)s in %(time).2fms" % \
+               {'xqueries': len(self.queries),
+                'plural': 'y' if (len(self.queries) == 1) else 'ies',
+                'time': self.total_time}
 
     def generate_stats(self, request, response):
         # statistics for display in the template
