@@ -191,7 +191,7 @@ class ExistDB(object):
         # easily setting a timeout of None and have it override any
         # configured EXISTDB_TIMEOUT
 
-        if 'xmlrpc' in server_url:
+        if server_url is not None and 'xmlrpc' in server_url:
             self._init_from_xmlrpc_url(server_url)
         else:
             # add username/password to url if set
