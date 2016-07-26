@@ -16,18 +16,39 @@
 
 import os
 import unittest
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
 
-from django.conf import settings
+try:
+    import django
+    from django.conf import settings
+except ImportError:
+    django = None
+    import localsettings as settings
 
 from eulxml import xmlmap
 from eulexistdb.db import ExistDB
-from eulexistdb.manager import Manager
-from eulexistdb.models import XmlModel
+
+try:
+    # manager and model currently require django
+    from eulexistdb.models import XmlModel
+    from eulexistdb.manager import Manager
+except ImportError:
+    # create dummy classes so code models declared below are valid
+    class XmlModel:
+        pass
+
+    class Manager:
+        def __init__(self, *args, **kwargs):
+            pass
 
 from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
     EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION
 
 # test model/manager logic
+
 
 class PartingBase(xmlmap.XmlObject):
     '''A plain XmlObject comparable to how one might be defined in
@@ -41,14 +62,17 @@ class Parting(XmlModel, PartingBase):
     fields.'''
     objects = Manager('/parting')
 
+
 class Exclamation(XmlModel):
     text = xmlmap.StringField('text()')
     next = xmlmap.StringField('following-sibling::*[1]')
 
     objects = Manager('/parting/exclamation')
 
+
+@skipIf(django is None, 'Requires Django')
 class ModelTest(unittest.TestCase):
-    COLLECTION = settings.EXISTDB_TEST_COLLECTION
+    COLLECTION = EXISTDB_TEST_COLLECTION
 
     def setUp(self):
         self.db = ExistDB(server_url=EXISTDB_SERVER_URL,
@@ -78,5 +102,4 @@ class ModelTest(unittest.TestCase):
         # test sibling node access via 'also'
         exc = Exclamation.objects.filter(text='Au revoir').also('next').get()
         self.assertEqual('monde', exc.next)
-
 

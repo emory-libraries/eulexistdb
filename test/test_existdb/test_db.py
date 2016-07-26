@@ -15,12 +15,42 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from contextlib import contextmanager
 import unittest
 import xmlrpclib
 from urlparse import urlsplit, urlunsplit
-from django.conf import settings
-from django.test.utils import override_settings
 from mock import patch
+
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
+
+try:
+    import django
+    from django.conf import settings
+    from django.test.utils import override_settings
+except ImportError:
+    django = None
+    import localsettings as settings
+
+    # supply replacement for override settings
+    # NOTE: only used here as context manager, not as a decorator
+    @contextmanager
+    def override_settings(*args, **kwargs):
+        global settings
+        # patch settings
+        old_vals = {}
+        for key, val in kwargs.iteritems():
+            old_vals[key] = getattr(settings, key, None)
+            setattr(settings, key, val)
+
+        yield
+
+        # restore values
+        for key, val in old_vals.iteritems():
+            setattr(settings, key, val)
+
 
 from eulexistdb import db
 from eulexistdb import patch as db_patch
@@ -33,7 +63,6 @@ from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
 
 class ExistDBTest(unittest.TestCase):
     COLLECTION = EXISTDB_TEST_COLLECTION
-
 
     def setUp(self):
         self.db = db.ExistDB(server_url=EXISTDB_SERVER_URL,
@@ -72,6 +101,7 @@ class ExistDBTest(unittest.TestCase):
 
     # TODO: test init with/without django.conf settings
 
+    @skipIf(django is None, 'Requires Django')
     def test_failed_authentication_from_settings(self):
         """Check that initializing ExistDB with invalid django settings raises exception"""
         # passwords can be specified in localsettings.py
@@ -83,6 +113,7 @@ class ExistDBTest(unittest.TestCase):
             self.assertRaises(db.ExistDBException,
                 test_db.hasCollection, self.COLLECTION)
 
+    @skipIf(django is None, 'Requires Django')
     def test_serverurl_from_djangoconf(self):
         # test constructing url based on multiple possible configurations
         if not hasattr(settings, 'EXISTDB_SERVER_USER'):
@@ -106,14 +137,12 @@ class ExistDBTest(unittest.TestCase):
         settings.EXISTDB_SERVER_USER = None
         self.assertEqual(settings.EXISTDB_SERVER_URL, self.db._serverurl_from_djangoconf())
 
-
     def test_getDocument(self):
         """Test retrieving a full document from eXist"""
         xml = self.db.getDocument(self.COLLECTION + "/hello.xml")
         self.assertEquals(xml, "<hello>World</hello>")
 
         self.assertRaises(Exception, self.db.getDocument, self.COLLECTION + "/notarealdoc.xml")
-
 
     def test_getDoc(self):
         """Test retrieving a full document from eXist (legacy function name for getDocument)"""
@@ -285,7 +314,6 @@ class ExistDBTest(unittest.TestCase):
 
         self.assertFalse(qres.results)
 
-
     def test_executeQuery(self):
         """Test executeQuery & dependent functions (querySummary, getHits, retrieve)"""
         xqry = 'for $x in collection("/db%s")/root/element where $x/@name="two" return $x' % (self.COLLECTION, )
@@ -328,7 +356,6 @@ class ExistDBTest(unittest.TestCase):
 
         # retrieve non-existent result
         self.assertRaises(db.ExistDBException, self.db.retrieve, result_id, 0)
-
 
     def test_executeQuery_bad_xquery(self):
         """Check that an invalid xquery raises an exception"""
@@ -485,11 +512,26 @@ class ExistDBTest(unittest.TestCase):
                 args, kwargs = xmlrpc_session.post.call_args
                 self.assertEqual(timeout, kwargs['timeout'])
 
-                # django settings
+    @skipIf(django is None, 'Requires Django')
+    def test_django_timeout(self):
+        # use mocks to test initialization/timeout parameters
+        with patch('eulexistdb.db.socket') as mocksocket:
+            timeout_server = 'http://nonexistent/exist:8080/timeout'
+
+            with patch('eulexistdb.db.requests') as mockrequests:
+
+                # test init via django settings
                 django_timeout = 4
                 with override_settings(EXISTDB_TIMEOUT=django_timeout):
                     # no timeout specified, should use settings
                     timeoutdb = db.ExistDB(server_url=timeout_server)
+                    mocksocket.getdefaulttimeout.assert_not_called()
+
+                    # xmlrpc transport should use requested timeout
+                    xmlrpc_session = mockrequests.Session.return_value
+                    # requires a valid xmlrpc response or unmarshalling fails
+                    xmlrpc_session.post.return_value.text = '''<methodResponse>
+                    <params><param/></params></methodResponse>'''
 
                     # session used for rest api should use django timeout
                     self.assertEqual(django_timeout,
