@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+import sys
 
 from eulexistdb import __version__
 
@@ -23,6 +24,24 @@ try:
 except:
     pass
 
+# test reqs does *not* include django to allow testing without django
+# and against multiple versions of django
+test_requirements = [
+    'sphinx',
+    'nose',
+    'coverage',
+    'tox',
+    'django-debug-toolbar',
+    'mock'
+]
+
+# unittest2 should only be included for py2.6
+if sys.version_info < (2, 7):
+    # optional testrunner in testutil
+    test_requirements.append('unittest2')
+
+dev_requirements = test_requirements + ['Django']
+
 
 setup(
     name='eulexistdb',
@@ -38,16 +57,8 @@ setup(
     ],
     extras_require={
         'django': ['Django'],
-        'dev': [
-            'sphinx',
-            'nose',
-            'coverage',
-            'Django',
-            'unittest2',  # optional testrunner in testutil
-            'tox',
-            'django-debug-toolbar',
-            'mock'
-        ]
+        'dev': dev_requirements,
+        'test': test_requirements
     },
     description='Idiomatic access to the eXist-db XML Database using XPath and XQuery',
     long_description=LONG_DESCRIPTION,
