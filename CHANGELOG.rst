@@ -24,12 +24,12 @@ any necessary information about installation or upgrade notes.
   Contributed by  `@lddubeau <https://github.com/lddubeau>`_ in
   `PR #6 <https://github.com/emory-libraries/eulexistdb/pull/6>`_,
   resolves `#4 <https://github.com/emory-libraries/eulexistdb/issues/4>`_
-* Removed ``overwrite`` option from :meth:`eulexistdb.ExistDB.load`
+* Removed ``overwrite`` option from `eulexistdb.ExistDB.load`
   (no longer applicable under the REST API, and misleading)
   `#9 <https://github.com/emory-libraries/eulexistdb/issues/9>`_
-* Improved django-debug-toolbar integration. Addresses
-  `#7 <https://github.com/emory-libraries/eulexistdb/issues/7>`_
-  and `#8 <https://github.com/emory-libraries/eulexistdb/issues/8>`_.
+* Improved django-debug-toolbar integration.
+  `#7 <https://github.com/emory-libraries/eulexistdb/issues/7>`_,
+  `#8 <https://github.com/emory-libraries/eulexistdb/issues/8>`_
 * Updated `Existdb.DB` initialization parameters to restore support for
   xmlrpc-style urls with username and password used in previous versions
   of eulexistdb. `#10 <https://github.com/emory-libraries/eulexistdb/issues/10>`_
