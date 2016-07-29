@@ -34,6 +34,10 @@ EULexistdb
   .. image:: https://requires.io/github/emory-libraries/eulexistdb/requirements.svg?branch=master
     :target: https://requires.io/github/emory-libraries/eulexistdb/requirements/?branch=master
     :alt: Requirements Status
+    
+  .. image:: https://landscape.io/github/emory-libraries/eulexistdb/master/landscape.svg?style=flat
+   :target: https://landscape.io/github/emory-libraries/eulexistdb/master
+   :alt: Code Health
 
 
 EULexistdb is a `Python <http://www.python.org/>`_ module that
