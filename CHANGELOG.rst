@@ -33,6 +33,7 @@ any necessary information about installation or upgrade notes.
 * Updated `Existdb.DB` initialization parameters to restore support for
   xmlrpc-style urls with username and password used in previous versions
   of eulexistdb. `#10 <https://github.com/emory-libraries/eulexistdb/issues/10>`_
+* Bugfix: xquery xpath prep now handles nested function calls
 * Updated unit tests so they can be run with and without django, in order
   to test that eulexistdb works properly without django.
 * Configured unit tests on travis-ci to test with and without django.
