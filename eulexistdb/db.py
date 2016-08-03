@@ -126,11 +126,12 @@ def _wrap_xmlrpc_fault(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except (socket.timeout, requests.exceptions.ReadTimeout) as e:
-            raise ExistDBTimeout(e)
-        except (socket.error, xmlrpclib.Fault, \
-                xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
-            raise ExistDBException(e)
+        except (socket.timeout, requests.exceptions.ReadTimeout) as err:
+            raise ExistDBTimeout(err)
+        except (socket.error, xmlrpclib.Fault,
+                xmlrpclib.ProtocolError, xmlrpclib.ResponseError,
+                requests.exceptions.ConnectionError) as err:
+            raise ExistDBException(err)
         # FIXME: could we catch IOerror (connection reset) and try again ?
         # occasionally getting this error (so far exclusively in unit tests)
         # error: [Errno 104] Connection reset by peer
