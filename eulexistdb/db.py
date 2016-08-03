@@ -67,10 +67,20 @@ of options like this::
 
     EXISTDB_FULLTEXT_OPTIONS = {'default-operator': 'and'}
 
-.. note::
+.. Note::
 
-  Full-text query options are only available in very recent versions of eXist.
+    Python :mod:`xmlrpclib` does not support extended types, some of which
+    are used in eXist returns.  This does not currently affect the
+    functionality exposed within :class:`ExistDB`, but may cause issues
+    if you use the :attr:`ExistDB.server` XML-RPC connection directly
+    for other available eXist XML-RPC methods.   If you do make use of
+    those, you may want to enable XML-RPC patching to handle the return
+    types::
 
+        from eulexistdb import patch
+        patch.request_patching(patch.XMLRpcLibPatch)
+
+---
 
 If you are writing unit tests against code that uses
 :mod:`eulexistdb`, you may want to take advantage of
@@ -89,11 +99,18 @@ import httplib
 import logging
 import requests
 import socket
+import time
 from urllib import unquote_plus, splittype
 import urlparse
 import warnings
 import xmlrpclib
 
+try:
+    from django.dispatch import Signal
+except ImportError:
+    Signal = None
+
+from . import patch
 from eulxml import xmlmap
 from eulexistdb.exceptions import ExistDBException, ExistDBTimeout
 
@@ -103,20 +120,27 @@ logger = logging.getLogger(__name__)
 
 EXISTDB_NAMESPACE = 'http://exist.sourceforge.net/NS/exist'
 
+
 def _wrap_xmlrpc_fault(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except (socket.timeout, requests.exceptions.ReadTimeout) as e:
-            raise ExistDBTimeout(e)
-        except (socket.error, xmlrpclib.Fault, \
-                xmlrpclib.ProtocolError, xmlrpclib.ResponseError) as e:
-            raise ExistDBException(e)
+        except (socket.timeout, requests.exceptions.ReadTimeout) as err:
+            raise ExistDBTimeout(err)
+        except (socket.error, xmlrpclib.Fault,
+                xmlrpclib.ProtocolError, xmlrpclib.ResponseError,
+                requests.exceptions.ConnectionError) as err:
+            raise ExistDBException(err)
         # FIXME: could we catch IOerror (connection reset) and try again ?
         # occasionally getting this error (so far exclusively in unit tests)
         # error: [Errno 104] Connection reset by peer
     return wrapper
+
+xquery_called = None
+if Signal is not None:
+    xquery_called = Signal(providing_args=[
+        "time_taken", "name", "return_value", "args", "kwargs"])
 
 
 class ExistDB(object):
@@ -126,8 +150,15 @@ class ExistDB(object):
     information about where the server is, to be used in later
     communications.
 
-    :param server_url: The XML-RPC endpoint of the server, typically
-                       ``/xmlrpc`` within the server root.
+    :param server_url: The eXist server URL.  New syntax (as of 0.20)
+        expects primary eXist url and *not* the ``/xmlrpc`` endpoint;
+        for backwards compatibility, urls that include `/xmlrpc``
+        are still handled, and will be parsed to set exist server path
+        as well as username and password if specified.  Note that username
+        and password parameters take precedence over username
+        and password in the server url if both are specified.
+    :param username: exist username, if any
+    :param password: exist user password, if any
     :param resultType: The class to use for returning :meth:`query` results;
                        defaults to :class:`QueryResult`
     :param encoding:   The encoding used to communicate with the server;
@@ -141,9 +172,18 @@ class ExistDB(object):
       with EXISTDB_SESSION_KEEP_ALIVE
     """
 
+    # default timeout, to allow distinguishing between no timeout
+    # specified and an explicit timeout of None (e.g., explicit timeout
+    # None should override a configured EXISTDB_TIMEOUT)
+    DEFAULT_TIMEOUT = object()
+
+    exist_url = None
+    username = None
+    password = None
+
     def __init__(self, server_url=None, username=None, password=None,
                  resultType=None, encoding='UTF-8', verbose=False,
-                 keep_alive=None, **kwargs):
+                 keep_alive=None, timeout=DEFAULT_TIMEOUT):
 
         self.resultType = resultType or QueryResult
         datetime_opt = {'use_datetime': True}
@@ -151,24 +191,47 @@ class ExistDB(object):
         # distinguish between timeout not set and no timeout, to allow
         # easily setting a timeout of None and have it override any
         # configured EXISTDB_TIMEOUT
-        timeout = None
-        if 'timeout' in kwargs:
-            timeout = kwargs['timeout']
 
-        # add username/password to url if set
-        self.exist_url = server_url
-        self.username = username
-        self.password = password
+        if server_url is not None and 'xmlrpc' in server_url:
+            self._init_from_xmlrpc_url(server_url)
+        else:
+            # add username/password to url if set
+            self.exist_url = server_url
+
+        # if username/password are supplied, set them
+        if username is not None:
+            self.username = username
+        if password is not None:
+            self.password = password
 
         # if server url or timeout are not set, attempt to get from django settings
-        if self.exist_url is None or 'timeout' not in kwargs:
+        if self.exist_url is None or timeout == ExistDB.DEFAULT_TIMEOUT:
+            # Django integration is NOT required, so check for settings
+            # but don't error if they are not available.
             try:
-                from django.conf import settings
-                if self.exist_url is None:
-                    self.exist_url = self._serverurl_from_djangoconf()
+                # if django is not installed, we should get an import error
+                import django
+                # from django.core.exceptions import ImproperlyConfigured
+                try:
+                    # if django is installed but not used, we get an
+                    # "improperly configured" error
+                    from django.conf import settings
+                    if self.exist_url is None:
+                        self.exist_url = self._serverurl_from_djangoconf()
 
-                if 'timeout' not in kwargs:
-                    timeout = getattr(settings, 'EXISTDB_TIMEOUT', None)
+                    # if the default timeout is used, check for a timeout
+                    # in django exist settings
+                    if timeout == ExistDB.DEFAULT_TIMEOUT:
+                        timeout = getattr(settings, 'EXISTDB_TIMEOUT',
+                                          ExistDB.DEFAULT_TIMEOUT)
+
+                    # if a keep-alive option is not specified, check
+                    # for a django option to configure the session
+                    if keep_alive is None:
+                        keep_alive = getattr(settings,
+                                             'EXISTDB_SESSION_KEEP_ALIVE', None)
+                except django.core.exceptions.ImproperlyConfigured:
+                    pass
             except ImportError:
                 pass
 
@@ -182,11 +245,11 @@ class ExistDB(object):
         self.session = requests.Session()
         if self.username is not None and self.password is not None:
             self.session.auth = (self.username, self.password)
-        # if a keep-alive option is specified, configure the session
-        if keep_alive is None:
-            keep_alive = getattr(settings, 'EXISTDB_SESSION_KEEP_ALIVE', None)
         if keep_alive is not None:
             self.session.keep_alive = keep_alive
+        self.session_opts = {}
+        if timeout is not ExistDB.DEFAULT_TIMEOUT:
+            self.session_opts['timeout'] = timeout
 
         transport = RequestsTransport(timeout=timeout, session=self.session,
                                       url=self.exist_url, **datetime_opt)
@@ -223,6 +286,25 @@ class ExistDB(object):
         except ImportError:
             pass
 
+    def _init_from_xmlrpc_url(self, url):
+        # map old-style xmlrpc url with username/password to
+        # new-style initialization
+        parsed = urlparse.urlparse(url)
+        # add username/password if set
+        if parsed.username:
+            self.username = parsed.username
+        if parsed.password:
+            self.password = parsed.password
+
+        # construct base exist url, without xmlrpc extension
+        path = parsed.path.replace('/xmlrpc', '')
+        # parsed netloc includes username & password; reconstruct without
+        if parsed.port is not None:
+            netloc = '%s:%s' % (parsed.hostname, parsed.port)
+        else:
+            netloc = parsed.hostname
+        self.exist_url = '%s://%s%s' % (parsed.scheme, netloc, path)
+
     def restapi_path(self, path):
         # generate rest path to a collection or document
         # FIXME: getting duplicated db path, handle this better
@@ -233,7 +315,6 @@ class ExistDB(object):
             path = '/%s' % path
         return '%s/rest/db%s' % (self.exist_url.rstrip('/'), path)
 
-
     def getDocument(self, name):
         """Retrieve a document from the database.
 
@@ -243,7 +324,8 @@ class ExistDB(object):
         """
         # REST api; need an error wrapper?
         logger.debug('getDocument %s' % self.restapi_path(name))
-        response = self.session.get(self.restapi_path(name), stream=False)
+        response = self.session.get(self.restapi_path(name), stream=False,
+                                    **self.session_opts)
         if response.status_code == requests.codes.ok:
             return response.content
         if response.status_code == requests.codes.not_found:
@@ -254,7 +336,6 @@ class ExistDB(object):
     def getDoc(self, name):
         "Alias for :meth:`getDocument`."
         return self.getDocument(name)
-
 
     def createCollection(self, collection_name, overwrite=False):
         """Create a new collection in the database.
@@ -360,21 +441,21 @@ class ExistDB(object):
         logger.debug('getCollectionDesc %s' % collection_name)
         return self.server.getCollectionDesc(collection_name)
 
-    def load(self, xml, path, overwrite=False):
+    def load(self, xml, path):
         """Insert or overwrite a document in the database.
 
         :param xml: string or file object with the document contents
         :param path: destination location in the database
-        :param overwrite: True to allow overwriting an existing document
         :rtype: boolean indicating success
 
         """
         if hasattr(xml, 'read'):
             xml = xml.read()
 
-        logger.debug('parse %s overwrite=%s' % (path, overwrite))
+        logger.debug('load %s', path)
         # NOTE: overwrite is assumed by REST
-        response = self.session.put(self.restapi_path(path), xml, stream=False)
+        response = self.session.put(self.restapi_path(path), xml, stream=False,
+                                    **self.session_opts)
         if response.status_code == requests.codes.bad_request:
             # response is HTML, not xml...
             # could use regex or beautifulsoup to pull out the error
@@ -452,8 +533,17 @@ class ExistDB(object):
         else:
             debug_query = ''
         logger.debug('query %s%s' % (opts, debug_query))
+        start = time.time()
+        response = self.session.get(self.restapi_path(''), params=params,
+                                    stream=False, **self.session_opts)
 
-        response = self.session.get(self.restapi_path(''), params=params, stream=False)
+        if xquery_called is not None:
+            args = {'xquery': xquery, 'start': start, 'how_many': how_many,
+                    'cache': cache, 'session': session, 'release': release,
+                    'result_type': result_type}
+            xquery_called.send(
+                sender=self.__class__, time_taken=time.time() - start,
+                name='query', return_value=response, args=[], kwargs=args)
 
         if response.status_code == requests.codes.ok:
             # successful release doesn't return any content
@@ -599,8 +689,7 @@ class ExistDB(object):
         """
         return ExistPermissions(self.server.getPermissions(resource))
 
-
-    def loadCollectionIndex(self, collection_name, index, overwrite=True):
+    def loadCollectionIndex(self, collection_name, index):
         """Load an index configuration for the specified collection.
         Creates the eXist system config collection if it is not already there,
         and loads the specified index config file, as per eXist collection and
@@ -608,7 +697,6 @@ class ExistDB(object):
 
         :param collection_name: name of the collection to be indexed
         :param index: string or file object with the document contents (as used by :meth:`load`)
-        :param overwrite: set to False to disallow overwriting current index (overwrite allowed by default)
         :rtype: boolean indicating success
 
         """
@@ -620,7 +708,7 @@ class ExistDB(object):
             self.createCollection(index_collection)
 
         # load index content as the collection index configuration file
-        return self.load(index, self._collectionIndexPath(collection_name), overwrite)
+        return self.load(index, self._collectionIndexPath(collection_name))
 
     def removeCollectionIndex(self, collection_name):
         """Remove index configuration for the specified collection.
@@ -676,26 +764,32 @@ class ExistDB(object):
     # admin functionality; where should this live?
 
     def create_group(self, group):
-        # create a group; returns true if the group was created,
-        # false if the group already exists
+        '''Create a group; returns true if the group was created,
+        false if the group already exists.  Any other exist exception
+        is re-raised.'''
         try:
-            result = self.query('sm:create-group("%s")' % group);
+            self.query('sm:create-group("%s")' % group);
             # returns a query result with no information on success
             return True
         except ExistDBException as err:
             if 'group with name %s already exists' % group in err.message():
                 return False
+            raise
 
     def create_account(self, username, password, groups):
+        '''Create a user account; returns true if the user was created,
+        false if the user already exists.  Any other exist exception
+        is re-raised.'''
         try:
-            result = self.query('sm:create-account("%s", "%s", "%s")' % \
-                (username, password, groups))
+            self.query('sm:create-account("%s", "%s", "%s")' % \
+                      (username, password, groups))
             return True
         except ExistDBException as err:
             if 'user account with username %s already exists' % username in err.message():
                 return False
             # NOTE: might be possible to also get a group error here
             # perhaps just check for 'already exists' ?
+            raise
 
 
 class ExistPermissions:
@@ -774,9 +868,11 @@ class RequestsTransport(xmlrpclib.Transport):
     # boolean flag to indicate whether https should be used or not
     use_https = False
 
-    def __init__(self, timeout=None, session=None, url=None, *args, **kwargs):
-        if timeout is None:
-            timeout = socket._GLOBAL_DEFAULT_TIMEOUT
+    def __init__(self, timeout=ExistDB.DEFAULT_TIMEOUT, session=None,
+                 url=None, *args, **kwargs):
+        # if default timeout is requested, use the global socket default
+        if timeout is ExistDB.DEFAULT_TIMEOUT:
+            timeout = socket.getdefaulttimeout()
         xmlrpclib.Transport.__init__(self, *args, **kwargs)
         self.timeout = timeout
         # NOTE: assumues that if basic auth is needed, it is set
@@ -789,7 +885,6 @@ class RequestsTransport(xmlrpclib.Transport):
             'User-Agent': self.user_agent,
             'Content-Type': 'application/xml'
         })
-
 
         # determine whether https is needed based on the url
         if url is not None:
@@ -804,7 +899,7 @@ class RequestsTransport(xmlrpclib.Transport):
             resp = self.session.post(url, data=request_body,
                 timeout=self.timeout)
         except Exception:
-            raise # something went wrong
+            raise  # something went wrong
         else:
             try:
                 resp.raise_for_status()
@@ -813,6 +908,12 @@ class RequestsTransport(xmlrpclib.Transport):
                                               str(err), resp.headers)
             else:
                 return self.parse_response(resp)
+
+    def getparser(self):
+        # Patch the parser to prevent errors on Apache's extended
+        # attributes. See the code in the patch module for details.
+        parser, unmarshaller = xmlrpclib.Transport.getparser(self)
+        return patch.XMLRpcLibPatch.apply(parser, unmarshaller)
 
     def parse_response(self, resp):
         """
@@ -830,4 +931,3 @@ class RequestsTransport(xmlrpclib.Transport):
         """
         scheme = 'https' if self.use_https else 'http'
         return '%s://%s%s' % (scheme, host, handler)
-

@@ -1301,7 +1301,7 @@ class Xquery(object):
             parsed_xpath = parse(xpath)
         else:
             parsed_xpath = xpath
-        #parsed_xpath = xpath if parsed else parse(xpath)
+        # parsed_xpath = xpath if parsed else parse(xpath)
         if context is None:
             context = self.xq_var
 
@@ -1325,29 +1325,30 @@ class Xquery(object):
             context_path = ''
             for i in range(len(parsed_xpath.args)):
                 arg = parsed_xpath.args[i]
-                if isinstance(arg, ast.AbbreviatedStep) or isinstance(arg, ast.Step):
+                if isinstance(arg, ast.AbbreviatedStep) or \
+                   isinstance(arg, ast.Step) or \
+                   isinstance(arg, ast.FunctionCall):  # nested function call
                     # prep_xpath returns string, but function arg needs to be parsed
                     parsed_xpath.args[i] = parse(self.prep_xpath(arg))
 
                 # xpath like .//name needs to be made relative to xquery variable
                 elif isinstance(arg, ast.BinaryExpression) and arg.op == '//':
                     xpath_str = '%(left)s%(op)s%(right)s' % {
-                    'op': arg.op,
-                    'left': self.prep_xpath(arg.left, context=context),
-                    # only the first portion needs xquery variable context
-                    'right': serialize(arg.right)
+                        'op': arg.op,
+                        'left': self.prep_xpath(arg.left, context=context),
+                        # only the first portion needs xquery variable context
+                        'right': serialize(arg.right)
                     }
                     parsed_xpath.args[i] = parse(xpath_str)
 
                 # xpath like xpath1|xpath1 needs both parts made relative to xquery variable
                 elif isinstance(arg, ast.BinaryExpression) and arg.op == '|':
                     xpath_str = '%(left)s%(op)s%(right)s' % {
-                    'op': arg.op,
-                    'left': self.prep_xpath(arg.left, context=context),
-                    'right': self.prep_xpath(arg.right, context=context),
+                        'op': arg.op,
+                        'left': self.prep_xpath(arg.left, context=context),
+                        'right': self.prep_xpath(arg.right, context=context),
                     }
                     parsed_xpath.args[i] = parse(xpath_str)
-
         else:
             # for a relative path, we need $n/(xpath)
             context_path = "%s/" % context

@@ -15,12 +15,46 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from contextlib import contextmanager
 import unittest
+import xmlrpclib
 from urlparse import urlsplit, urlunsplit
-from django.conf import settings
-from django.test.utils import override_settings
+from mock import patch
+
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
+
+try:
+    import django
+    from django.conf import settings
+    from django.test.utils import override_settings
+except ImportError:
+    django = None
+    import localsettings as settings
+
+    # supply replacement for override settings
+    # NOTE: only used here as context manager, not as a decorator
+    @contextmanager
+    def override_settings(*args, **kwargs):
+        global settings
+        # patch settings
+        old_vals = {}
+        for key, val in kwargs.iteritems():
+            old_vals[key] = getattr(settings, key, None)
+            setattr(settings, key, val)
+
+        yield
+
+        # restore values
+        for key, val in old_vals.iteritems():
+            setattr(settings, key, val)
+
 
 from eulexistdb import db
+from eulexistdb import patch as db_patch
+from eulexistdb.exceptions import ExistDBTimeout
 
 from localsettings import EXISTDB_SERVER_URL, EXISTDB_SERVER_USER, \
     EXISTDB_SERVER_PASSWORD, EXISTDB_TEST_COLLECTION, \
@@ -39,19 +73,35 @@ class ExistDBTest(unittest.TestCase):
             password=EXISTDB_SERVER_ADMIN_PASSWORD)
         self.db.createCollection(self.COLLECTION, True)
 
-        self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml', True)
+        self.db.load('<hello>World</hello>', self.COLLECTION + '/hello.xml')
 
         xml = '<root><element name="one">One</element><element name="two">Two</element><element name="two">Three</element></root>'
-        self.db.load(xml, self.COLLECTION + '/xqry_test.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test.xml')
 
         xml = '<root><field name="one">One</field><field name="two">Two</field><field name="three">Three</field><field name="four">Four</field><unicode> ϔ ϕ ϖ Ϛ Ϝ Ϟ Ϡ Ϣ ڡ ڢ ڣ ڤ ༀ </unicode></root>'
-        self.db.load(xml, self.COLLECTION + '/xqry_test2.xml', True)
+        self.db.load(xml, self.COLLECTION + '/xqry_test2.xml')
+
+        self.test_groups = []
+        self.test_users = []
+
+        xml = '<root xml:id="A"/>'
+        self.db.load(xml, self.COLLECTION + '/xqry_test3.xml')
+        self.db.load(xml, self.COLLECTION + '/xqry_test4.xml')
 
     def tearDown(self):
         self.db.removeCollection(self.COLLECTION)
 
+        for group in self.test_groups:
+            self.db_admin.query('sm:remove-group("%s")' % group)
+        for user in self.test_users:
+            self.db_admin.query('sm:remove-account("%s")' % user)
+
+        # Start with a clean slate.
+        db_patch.requested_patches = set()
+
     # TODO: test init with/without django.conf settings
 
+    @skipIf(django is None, 'Requires Django')
     def test_failed_authentication_from_settings(self):
         """Check that initializing ExistDB with invalid django settings raises exception"""
         # passwords can be specified in localsettings.py
@@ -63,12 +113,12 @@ class ExistDBTest(unittest.TestCase):
             self.assertRaises(db.ExistDBException,
                 test_db.hasCollection, self.COLLECTION)
 
+    @skipIf(django is None, 'Requires Django')
     def test_serverurl_from_djangoconf(self):
         # test constructing url based on multiple possible configurations
         if not hasattr(settings, 'EXISTDB_SERVER_USER'):
             settings.EXISTDB_SERVER_USER = 'username'
         if not hasattr(settings, 'EXISTDB_SERVER_PASSWORD'):
-            print "DEBUG: setting exist password on settings"
             settings.EXISTDB_SERVER_PASSWORD = 'pass'
 
         # these are irrelevant now, since not included in the url
@@ -87,6 +137,40 @@ class ExistDBTest(unittest.TestCase):
         settings.EXISTDB_SERVER_USER = None
         self.assertEqual(settings.EXISTDB_SERVER_URL, self.db._serverurl_from_djangoconf())
 
+    def test_init_old_format(self):
+        # support init with old-style xmlrpc url optionally including
+        # username and password
+        user = 'exister'
+        password = 'tryme'
+        url = 'example.com:8080/exist'
+        test_db = db.ExistDB('http://%s:%s@%s/xmlrpc' % (user, password, url))
+
+        self.assertEqual(user, test_db.username)
+        self.assertEqual(password, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # specified username/password args shoudl override xmlrpc url
+        override_user = 'existentialist'
+        override_password = 'sartre'
+        test_db = db.ExistDB('http://%s:%s@%s/xmlrpc' % (user, password, url),
+                             username=override_user, password=override_password)
+        self.assertEqual(override_user, test_db.username)
+        self.assertEqual(override_password, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # no username/password
+        test_db = db.ExistDB('http://%s/xmlrpc' % (url))
+        self.assertEqual(None, test_db.username)
+        self.assertEqual(None, test_db.password)
+        self.assertEqual('http://%s' % url, test_db.exist_url)
+
+        # no port, ssl
+        url = 'example.com/exist'
+        test_db = db.ExistDB('https://%s/xmlrpc' % (url))
+        self.assertEqual('https://%s' % url, test_db.exist_url)
+
+
+
 
     def test_getDocument(self):
         """Test retrieving a full document from eXist"""
@@ -94,7 +178,6 @@ class ExistDBTest(unittest.TestCase):
         self.assertEquals(xml, "<hello>World</hello>")
 
         self.assertRaises(Exception, self.db.getDocument, self.COLLECTION + "/notarealdoc.xml")
-
 
     def test_getDoc(self):
         """Test retrieving a full document from eXist (legacy function name for getDocument)"""
@@ -180,7 +263,7 @@ class ExistDBTest(unittest.TestCase):
             "collection owner returned (expected '%s', got %s" % \
                 (EXISTDB_SERVER_USER, info['owner']))
         # untested - group, created, permissions
-        self.assertEqual(3, len(info['documents']), "collection has 3 documents (3 test documents loaded)")
+        self.assertEqual(5, len(info['documents']), "collection has 5 documents (5 test documents loaded)")
         self.assertEqual([], info['collections'], "collection has no subcollections")
 
         # attempting to describe a collection that isn't in the db
@@ -233,6 +316,17 @@ class ExistDBTest(unittest.TestCase):
         # qres = self.db.query(xqry)
         # self.assertEquals(qres.hits, 1)
 
+    def test_query_duplicate_ids(self):
+        """
+        Test xquery with duplicate IDs in result. A query that returns
+        multiple XML documents that have the same xml:id value
+        appearing in them should not result in a query failure.
+        """
+        xqry = 'for $x in collection("/db%s")//root[@xml:id] return $x' % (
+            self.COLLECTION, )
+        qres = self.db.query(xqry)
+        self.assertEquals(qres.hits, 2)
+
     def test_query_bad_xqry(self):
         """Check that an invalid xquery raises an exception"""
         #invalid xqry missing "
@@ -254,7 +348,6 @@ class ExistDBTest(unittest.TestCase):
         # NOTE: this is a change from exist 1.4.x, was unset/None previously
 
         self.assertFalse(qres.results)
-
 
     def test_executeQuery(self):
         """Test executeQuery & dependent functions (querySummary, getHits, retrieve)"""
@@ -298,7 +391,6 @@ class ExistDBTest(unittest.TestCase):
 
         # retrieve non-existent result
         self.assertRaises(db.ExistDBException, self.db.retrieve, result_id, 0)
-
 
     def test_executeQuery_bad_xquery(self):
         """Check that an invalid xquery raises an exception"""
@@ -423,4 +515,116 @@ class ExistDBTest(unittest.TestCase):
         perms = self.db.getPermissions('/db' + self.COLLECTION + '/hello.xml')
         self.assertEqual(492, perms.permissions)
 
-    # can't figure out how to test timeout init param...
+    def test_timeout(self):
+        # set timeout low to confirm timeout exception is raised
+        timeoutdb = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+                               timeout=1)
+        self.assertRaises(ExistDBTimeout, timeoutdb.query, 'util:wait(10000)')
+
+        # use mocks to test initialization/timeout parameters
+        with patch('eulexistdb.db.socket') as mocksocket:
+            timeout_server = 'http://nonexistent/exist:8080/timeout'
+            # default timeout
+            timeoutdb = db.ExistDB(server_url=timeout_server)
+            mocksocket.getdefaulttimeout.assert_called_with()
+            mocksocket.reset_mock()
+
+            # timeout specified
+            with patch('eulexistdb.db.requests') as mockrequests:
+                timeout = 3
+                timeoutdb = db.ExistDB(server_url=timeout_server,
+                                       timeout=timeout)
+                mocksocket.getdefaulttimeout.assert_not_called()
+
+                # session options used for rest api should have timeout set
+                self.assertEqual(timeout, timeoutdb.session_opts['timeout'])
+                # xmlrpc transport should use requested timeout
+                xmlrpc_session = mockrequests.Session.return_value
+                # requires a valid xmlrpc response or unmarshalling fails
+                xmlrpc_session.post.return_value.text = '''<methodResponse>
+                <params><param/></params></methodResponse>'''
+                timeoutdb.server.ping()
+                args, kwargs = xmlrpc_session.post.call_args
+                self.assertEqual(timeout, kwargs['timeout'])
+
+    @skipIf(django is None, 'Requires Django')
+    def test_django_timeout(self):
+        # use mocks to test initialization/timeout parameters
+        with patch('eulexistdb.db.socket') as mocksocket:
+            timeout_server = 'http://nonexistent/exist:8080/timeout'
+
+            with patch('eulexistdb.db.requests') as mockrequests:
+
+                # test init via django settings
+                django_timeout = 4
+                with override_settings(EXISTDB_TIMEOUT=django_timeout):
+                    # no timeout specified, should use settings
+                    timeoutdb = db.ExistDB(server_url=timeout_server)
+                    mocksocket.getdefaulttimeout.assert_not_called()
+
+                    # xmlrpc transport should use requested timeout
+                    xmlrpc_session = mockrequests.Session.return_value
+                    # requires a valid xmlrpc response or unmarshalling fails
+                    xmlrpc_session.post.return_value.text = '''<methodResponse>
+                    <params><param/></params></methodResponse>'''
+
+                    # session used for rest api should use django timeout
+                    self.assertEqual(django_timeout,
+                                     timeoutdb.session_opts['timeout'])
+                    # xmlrpc transport should use django timeout
+                    timeoutdb.server.ping()
+                    args, kwargs = xmlrpc_session.post.call_args
+                    self.assertEqual(django_timeout, kwargs['timeout'])
+
+                    # explicit None should take precedence over django settings
+                    no_timeout = None
+                    timeoutdb = db.ExistDB(server_url=EXISTDB_SERVER_URL,
+                                           timeout=no_timeout)
+                    self.assertEqual(no_timeout,
+                                     timeoutdb.session_opts['timeout'])
+                    timeoutdb.server.ping()
+                    args, kwargs = xmlrpc_session.post.call_args
+                    self.assertEqual(no_timeout, kwargs['timeout'])
+
+    def test_create_account(self):
+        self.test_users.append('foo')
+        self.test_groups.append('foo')
+        # admin should be able to create a user
+        self.assertTrue(self.db_admin.create_account('foo', 'pass', 'foo'))
+        # trying to create same account again should return false
+        self.assertFalse(self.db_admin.create_account('foo', 'pass', 'foo'))
+        # non-admin should not be able to create an account
+        self.assertRaises(db.ExistDBException, self.db.create_account,
+                          'nodice', 'pass', 'nodice')
+
+    def test_create_group(self):
+        self.test_groups.append('foo')
+        # admin should be able to create a group
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # trying to create same group again should return false
+        self.assertFalse(self.db_admin.create_group('foo'))
+        # non-admin should not be able to create an account
+        self.assertRaises(db.ExistDBException, self.db.create_group,
+                          'not-a-group')
+
+    def test_xmlrpclib_failure_without_patch(self):
+        """
+        Test that without the XMLRpcLibPatch, we get a failure when
+        xmlrpclib tries to parse a response that contains Apache's
+        extended types.
+        """
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # The group is actually removed but the response cannot be parsed.
+        self.assertRaises(xmlrpclib.ResponseError,
+                          self.db_admin.server.removeGroup, 'foo')
+
+    def test_xmlrpclib_failure_without_patch(self):
+        """
+        Test that without the XMLRpcLibPatch, we get a failure when
+        xmlrpclib tries to parse a response that contains Apache's
+        extended types.
+        """
+        db_patch.request_patching(db_patch.XMLRpcLibPatch)
+        self.assertTrue(self.db_admin.create_group('foo'))
+        # The group is actually removed but the response cannot be parsed.
+        self.db_admin.server.removeGroup('foo')

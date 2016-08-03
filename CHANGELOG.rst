@@ -5,9 +5,44 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.21
+----
+
+* Removed unused kwargs from db.ExistDB init method
+  `#1 <https://github.com/emory-libraries/eulexistdb/issues/1>`_
+* db.ExistDB ``create_group`` and ``create_account`` methods now re-raise
+  unexpected errors
+  `#2 <https://github.com/emory-libraries/eulexistdb/issues/2>`_
+* Improved timeout handling; fixes timeouts on REST API requests
+  `#3 <https://github.com/emory-libraries/eulexistdb/issues/3>`_
+* bugfix: make Django settings actually optional
+* Require eulxml 1.1.2 to handle duplicate ``xml:id`` attributes included
+  in a single exist result.  (Duplicate id test case contributed by
+  `@lddubeau <https://github.com/lddubeau>`_ in
+  `PR #5 <https://github.com/emory-libraries/eulexistdb/pull/5>`_ )
+* Add opt-in patch for extended type handling in xmlrpc.
+  Contributed by  `@lddubeau <https://github.com/lddubeau>`_ in
+  `PR #6 <https://github.com/emory-libraries/eulexistdb/pull/6>`_,
+  resolves `#4 <https://github.com/emory-libraries/eulexistdb/issues/4>`_
+* Removed ``overwrite`` option from `eulexistdb.ExistDB.load`
+  (no longer applicable under the REST API, and misleading)
+  `#9 <https://github.com/emory-libraries/eulexistdb/issues/9>`_
+* Improved django-debug-toolbar integration.
+  `#7 <https://github.com/emory-libraries/eulexistdb/issues/7>`_,
+  `#8 <https://github.com/emory-libraries/eulexistdb/issues/8>`_
+* Updated `Existdb.DB` initialization parameters to restore support for
+  xmlrpc-style urls with username and password used in previous versions
+  of eulexistdb. `#10 <https://github.com/emory-libraries/eulexistdb/issues/10>`_
+* Bugfix: xquery xpath prep now handles nested function calls
+* Updated unit tests so they can be run with and without django, in order
+  to test that eulexistdb works properly without django.
+* Configured unit tests on travis-ci to test with and without django.
+
 0.20
 ----
 
+* **NOTE:** :class:`Existdb.DB` initialization parameters has changed;
+  server url is no longer expected to include full xmlrpc path.
 * Updated and tested for compatibility with eXist-db 2.2
 * Improved :class:`eulexistdb.query.QuerySet` efficiency when retrieving
   results (now retrieves chunked results using eXist REST API,

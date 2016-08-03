@@ -16,12 +16,21 @@
 
 from lxml import etree
 import unittest
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
 
 from eulexistdb.db import EXISTDB_NAMESPACE
-from eulexistdb.templatetags.existdb import exist_matches
 from eulxml.xmlmap import XmlObject
+try:
+    # currently requires django
+    from eulexistdb.templatetags.existdb import exist_matches
+except ImportError:
+    exist_matches = None
 
 
+@skipIf(exist_matches is None, 'Requires Django')
 class ExistMatchTestCase(unittest.TestCase):
 # test exist_match template tag explicitly
     SINGLE_MATCH = """<abstract>Pitts v. <exist:match xmlns:exist="%s">Freeman</exist:match>

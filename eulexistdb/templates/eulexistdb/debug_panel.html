@@ -1,4 +1,4 @@
-{% load i18n %}{% load cycle from debug_toolbar_compat %}
+{% load i18n %}
 <h4>{% trans "Summary" %}</h4>
 <table>
 	<thead>
@@ -35,7 +35,9 @@
 			<td>{{ query.time|floatformat:"4" }}</td>
 			<td><pre>{% firstof query.args.0 query.kwargs.xquery %}</pre></td>
 			<td>{% for arg, opt in  query.kwargs.iteritems %}
+				{% if arg = 'xquery' %} {# skip - already displayed #} {% else %}
 				{{ arg }}: {{ opt }}{% if not forloop.last %}<br/>{% endif %}
+				{% endif %}
 				{% endfor %}
 			</td>
 		</tr>

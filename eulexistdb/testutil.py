@@ -123,7 +123,7 @@ class TestCase(DjangoTestCase):
         db = ExistDB()
         fname = path.split(file)[-1]
         exist_path = path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
-        db.load(open(file), exist_path, True)
+        db.load(open(file), exist_path)
 
     def _remove_file_from_exist(self, file):
         db = ExistDB()

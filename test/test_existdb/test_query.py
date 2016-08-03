@@ -934,6 +934,11 @@ class XqueryTest(unittest.TestCase):
         self.assertEqual('fn:lower-case($n/name|$n/title)',
                 xq.prep_xpath('fn:lower-case(name|title)'))
 
+        # node|node inside a nested function call
+        self.assertEqual('fn:lower-case(normalize-space($n/name|$n/title))',
+                xq.prep_xpath('fn:lower-case(normalize-space(name|title))'))
+
+
     def test_namespaces(self):
         xq = Xquery(xpath='/foo:el', namespaces={'foo': 'urn:foo#'})
         ns_declaration = '''declare namespace foo='urn:foo#';'''
