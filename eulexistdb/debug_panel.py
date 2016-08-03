@@ -51,7 +51,7 @@ class ExistDBPanel(Panel):
         # remove empty values from kwargs, to simplify display
         for k, val in list(kwargs.iteritems()):
             if val is None:
-                del args[k]
+                del kwargs[k]
 
         time_taken *= 1000
         self.total_time += time_taken
