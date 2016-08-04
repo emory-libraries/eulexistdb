@@ -5,6 +5,14 @@ The following is a summary of changes and improvements to
 :mod:`eulexistdb`.  New features in each version should be listed, with
 any necessary information about installation or upgrade notes.
 
+0.21.1
+------
+
+* Clean up reference to old overwrite parameter no longer used in
+  `db.load` method; explicitly test load method
+  `#12 <https://github.com/emory-libraries/eulexistdb/issues/12>`_
+* Code cleanup based on landscape.io scan.
+
 0.21
 ----
 
