@@ -31,6 +31,10 @@ EULexistdb
     :target: https://codeclimate.com/github/emory-libraries/eulexistdb
     :alt: Code Climate
 
+  .. image:: https://landscape.io/github/emory-libraries/eulexistdb/master/landscape.svg?style=flat
+     :target: https://landscape.io/github/emory-libraries/eulexistdb/master
+     :alt: Code Health
+
   .. image:: https://requires.io/github/emory-libraries/eulexistdb/requirements.svg?branch=master
     :target: https://requires.io/github/emory-libraries/eulexistdb/requirements/?branch=master
     :alt: Requirements Status

@@ -72,10 +72,8 @@ Available subcommands:
         # check for required settings (used in all modes)
         if not hasattr(settings, 'EXISTDB_ROOT_COLLECTION') or not settings.EXISTDB_ROOT_COLLECTION:
             raise CommandError("EXISTDB_ROOT_COLLECTION setting is missing")
-            return
         if not hasattr(settings, 'EXISTDB_INDEX_CONFIGFILE') or not settings.EXISTDB_INDEX_CONFIGFILE:
             raise CommandError("EXISTDB_INDEX_CONFIGFILE setting is missing")
-            return
 
         collection = settings.EXISTDB_ROOT_COLLECTION
         index = settings.EXISTDB_INDEX_CONFIGFILE

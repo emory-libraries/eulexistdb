@@ -97,11 +97,11 @@ class TestCase(DjangoTestCase):
                 db.loadCollectionIndex(settings.EXISTDB_ROOT_COLLECTION,
                         open(self.exist_fixtures['index']))
             if 'directory' in self.exist_fixtures:
-                for file in glob(path.join(self.exist_fixtures['directory'], '*.xml')):
-                    self._load_file_to_exist(file)
+                for filename in glob(path.join(self.exist_fixtures['directory'], '*.xml')):
+                    self._load_file_to_exist(filename)
             if 'files' in self.exist_fixtures:
-                for file in self.exist_fixtures['files']:
-                    self._load_file_to_exist(file)
+                for filename in self.exist_fixtures['files']:
+                    self._load_file_to_exist(filename)
 
         return super(TestCase, self)._fixture_setup()
 
@@ -111,23 +111,23 @@ class TestCase(DjangoTestCase):
             if 'index' in self.exist_fixtures:
                 db.removeCollectionIndex(settings.EXISTDB_ROOT_COLLECTION)
             if 'directory' in self.exist_fixtures:
-                for file in glob(path.join(self.exist_fixtures['directory'], '*.xml')):
-                    self._remove_file_from_exist(file)
+                for filename in glob(path.join(self.exist_fixtures['directory'], '*.xml')):
+                    self._remove_file_from_exist(filename)
             if 'files' in self.exist_fixtures:
-                for file in self.exist_fixtures['files']:
-                    self._remove_file_from_exist(file)
+                for filename in self.exist_fixtures['files']:
+                    self._remove_file_from_exist(filename)
 
         return super(TestCase, self)._fixture_teardown()
 
-    def _load_file_to_exist(self, file):
+    def _load_file_to_exist(self, filename):
         db = ExistDB()
-        fname = path.split(file)[-1]
+        fname = path.split(filename)[-1]
         exist_path = path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
-        db.load(open(file), exist_path)
+        db.load(open(filename), exist_path)
 
-    def _remove_file_from_exist(self, file):
+    def _remove_file_from_exist(self, filename):
         db = ExistDB()
-        fname = path.split(file)[-1]
+        fname = path.split(filename)[-1]
         exist_path = path.join(settings.EXISTDB_ROOT_COLLECTION, fname)
         # tests could remove fixtures, so an exception here is not a problem
         try:
@@ -219,7 +219,6 @@ try:
             return ExistDBTextTestRunner(verbosity=self.verbosity,
                                          failfast=self.failfast).run(suite)
 except ImportError:
-    pass
 
     try:
         # when xmlrunner is available, define xmltest variants

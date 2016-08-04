@@ -91,9 +91,11 @@ class QuerySet(object):
     default_chunk_size = 100
 
     def __init__(self, model=None, xpath=None, using=None, collection=None,
-                xquery=None, fulltext_options={}):
+                xquery=None, fulltext_options=None):
         self.model = model
         self._db = using
+        if fulltext_options is None:
+            fulltext_options = {}
 
         # remove leading / from collection name if present
         collection = collection.lstrip('/') if collection is not None else None
@@ -637,7 +639,8 @@ class QuerySet(object):
             # basically do the simplest form of what load_xmlobject_from_string does
             element = etree.fromstring(data)
             # instead of root element, pass in first child node to xmlobject constructor
-            return self.return_type(element[0])
+            return_type = self.return_type
+            return return_type(element[0])
         else:
             return load_xmlobject_from_string(data, self.return_type)
 
@@ -692,7 +695,7 @@ class QuerySet(object):
 
 
 def _create_return_class(baseclass, override_fields, xpath_prefix=None,
-            override_xpaths={}):
+                         override_xpaths=None):
     """
     Define a new return class which extends the specified baseclass and
     overrides the specified fields.
@@ -713,6 +716,8 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
 
     classname = "Partial%s" % baseclass.__name__
     class_fields = {}
+    if override_xpaths is None:
+        override_xpaths = {}
 
     # collect names of subobjects, with information needed to create additional return classes
     subclasses = {}
@@ -733,7 +738,7 @@ def _create_return_class(baseclass, override_fields, xpath_prefix=None,
             if name == 'last_modified':     # special case field
                 field_type = xmlmap.DateTimeField
             elif name == 'match_count':
-                    field_type = xmlmap.IntegerField
+                field_type = xmlmap.IntegerField
             elif fields is None or isinstance(fields, basestring):
                 field_type = xmlmap.StringField    # handle special cases like fulltext score
             else:
@@ -818,9 +823,11 @@ class Xquery(object):
     _raw_prefix = 'r_'  # field-name prefix to distinguish raw field returns
 
     def __init__(self, xpath=None, collection=None, document=None,
-                 namespaces=None, fulltext_options={}):
+                 namespaces=None, fulltext_options=None):
         if xpath is not None:
             self.xpath = xpath
+        if fulltext_options is None:
+            fulltext_options = {}
 
         # remove leading / from collection name (if any)
         self.set_collection(collection)
