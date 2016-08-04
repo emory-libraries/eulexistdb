@@ -12,11 +12,8 @@ Reports on the Xqueries run to generate a page, including time to run
 the query, arguments passed, and response returned.
 '''
 
-import time
-from django.dispatch import Signal
 from debug_toolbar.panels import Panel
 
-import eulexistdb
 from eulexistdb import db
 
 # implementation based on django-debug-toolbar cache panel
@@ -37,8 +34,8 @@ class ExistDBPanel(Panel):
         db.xquery_called.connect(self._store_xquery_info)
 
     def _store_xquery_info(self, sender, name=None, time_taken=0,
-                          return_value=None, args=None, kwargs=None,
-                          trace=None, **kw):
+                           return_value=None, args=None, kwargs=None,
+                           trace=None, **kw):
         # process xquery signal and store information for display
         if name != 'query':
             return

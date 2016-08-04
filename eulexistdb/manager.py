@@ -1,5 +1,5 @@
 # file eulexistdb/manager.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@ class Manager(object):
     """
     Connect an :class:`~eulexistdb.models.XmlModel` to an
     :class:`~eulexistdb.db.ExistDB` for easy querying.
-    
+
     Typically each :class:`~eulexistdb.models.XmlModel` will
     have one or more ``Manager`` members. Like Django ``Manager`` objects
     these offer a convenient way to access model-based queries. Like Django
@@ -95,11 +95,10 @@ class Manager(object):
         return self.get_query_set().also(*args, **kwargs)
 
     def distinct(self):
-        return self.get_query_set().distinct(*args, **kwargs)
+        return self.get_query_set().distinct()
 
     def all(self):
         return self.get_query_set().all()
 
     def get(self, *args, **kwargs):
         return self.get_query_set().get(*args, **kwargs)
-

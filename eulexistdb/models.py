@@ -1,5 +1,5 @@
 # file eulexistdb/models.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +17,15 @@
 from eulexistdb.manager import Manager
 from eulxml.xmlmap.core import XmlObject, XmlObjectType
 
+
 class _ManagerDescriptor(object):
     def __init__(self, manager):
-       self.manager = manager
+        self.manager = manager
 
     def __get__(self, instance, type=None):
         if instance is not None:
-            raise AttributeError, "Manager isn't accessible via %s instances" % (type.__name__,)
+            raise AttributeError("Manager isn't accessible via %s instances"
+                                 % (type.__name__,))
         return self.manager
 
 

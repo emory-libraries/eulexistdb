@@ -95,12 +95,11 @@ collections in eXist.
 """
 
 from functools import wraps
-import httplib
 import logging
 import requests
 import socket
 import time
-from urllib import unquote_plus, splittype
+from urllib import splittype
 import urlparse
 import warnings
 import xmlrpclib
@@ -323,7 +322,7 @@ class ExistDB(object):
 
         """
         # REST api; need an error wrapper?
-        logger.debug('getDocument %s' % self.restapi_path(name))
+        logger.debug('getDocument %s', self.restapi_path(name))
         response = self.session.get(self.restapi_path(name), stream=False,
                                     **self.session_opts)
         if response.status_code == requests.codes.ok:
@@ -348,7 +347,7 @@ class ExistDB(object):
         if not overwrite and self.hasCollection(collection_name):
             raise ExistDBException(collection_name + " exists")
 
-        logger.debug('createCollection %s' % collection_name)
+        logger.debug('createCollection %s', collection_name)
         return self.server.createCollection(collection_name)
 
     @_wrap_xmlrpc_fault
@@ -362,7 +361,7 @@ class ExistDB(object):
         if (not self.hasCollection(collection_name)):
             raise ExistDBException(collection_name + " does not exist")
 
-        logger.debug('removeCollection %s' % collection_name)
+        logger.debug('removeCollection %s', collection_name)
         return self.server.removeCollection(collection_name)
 
     def hasCollection(self, collection_name):
@@ -373,7 +372,7 @@ class ExistDB(object):
 
         """
         try:
-            logger.debug('describeCollection %s' % collection_name)
+            logger.debug('describeCollection %s', collection_name)
             self.server.describeCollection(collection_name)
             return True
         except Exception as e:
@@ -427,7 +426,7 @@ class ExistDB(object):
         :rtype: dictionary
 
         """
-        logger.debug('describeResource %s' % document_path)
+        logger.debug('describeResource %s', document_path)
         return self.server.describeResource(document_path)
 
     @_wrap_xmlrpc_fault
@@ -438,7 +437,7 @@ class ExistDB(object):
         :rtype: boolean
 
         """
-        logger.debug('getCollectionDesc %s' % collection_name)
+        logger.debug('getCollectionDesc %s', collection_name)
         return self.server.getCollectionDesc(collection_name)
 
     def load(self, xml, path):
@@ -483,7 +482,7 @@ class ExistDB(object):
         :rtype: boolean indicating success
 
         """
-        logger.debug('remove %s' % name)
+        logger.debug('remove %s', name)
         return self.server.remove(name)
 
     @_wrap_xmlrpc_fault
@@ -540,7 +539,7 @@ class ExistDB(object):
             debug_query = '\n%s' % xquery
         else:
             debug_query = ''
-        logger.debug('query %s%s' % (opts, debug_query))
+        logger.debug('query %s%s', opts, debug_query)
         start = time.time()
         response = self.session.get(self.restapi_path(''), params=params,
                                     stream=False, **self.session_opts)
@@ -595,9 +594,9 @@ class ExistDB(object):
         #   This parameter is not documented in the eXist docs at
         #   http://demo.exist-db.org/exist/devguide_xmlrpc.xml
         #   so it's not clear what we can pass there.
-        logger.debug('executeQuery\n%s' % xquery)
+        logger.debug('executeQuery\n%s', xquery)
         result_id = self.server.executeQuery(xquery, {})
-        logger.debug('result id is %s' % result_id)
+        logger.debug('result id is %s', result_id)
         return result_id
 
     @_wrap_xmlrpc_fault
@@ -629,7 +628,7 @@ class ExistDB(object):
         #   Frankly, this return is just plain ugly. We should come up with
         #   something more meaningful.
         summary = self.server.querySummary(result_id)
-        logger.debug('querySummary result id %d : ' % result_id + \
+        logger.debug('querySummary result id %d : ' % result_id +
                      '%(hits)s hits, query took %(queryTime)s ms' % summary)
         return summary
 
@@ -643,7 +642,7 @@ class ExistDB(object):
         """
 
         hits = self.server.getHits(result_id)
-        logger.debug('getHits result id %d : %s' % (result_id, hits))
+        logger.debug('getHits result id %d : %s', result_id, hits)
         return hits
 
     @_wrap_xmlrpc_fault
@@ -664,7 +663,8 @@ class ExistDB(object):
             # pretty-printing with eXist matches can introduce unwanted whitespace
             if 'indent' not in options:
                 options['indent'] = 'no'
-        logger.debug('retrieve result id %d position=%d options=%s' % (result_id, position, options))
+        logger.debug('retrieve result id %d position=%d options=%s',
+                     result_id, position, options)
         return self.server.retrieve(result_id, position, options)
 
     @_wrap_xmlrpc_fault
@@ -674,7 +674,7 @@ class ExistDB(object):
         :param result_id: an integer handle returned by :meth:`executeQuery`
 
         """
-        logger.debug('releaseQueryResult result id %d' % result_id)
+        logger.debug('releaseQueryResult result id %d', result_id)
         self.server.releaseQueryResult(result_id)
 
     @_wrap_xmlrpc_fault
@@ -685,7 +685,7 @@ class ExistDB(object):
         :param permissions: int or string permissions statement
         """
         # TODO: support setting owner, group ?
-        logger.debug('setPermissions %s %s' % (resource, permissions))
+        logger.debug('setPermissions %s %s', resource, permissions)
         self.server.setPermissions(resource, permissions)
 
     @_wrap_xmlrpc_fault
@@ -800,7 +800,7 @@ class ExistDB(object):
             raise
 
 
-class ExistPermissions:
+class ExistPermissions(object):
     "Permissions for an eXist resource - owner, group, and active permissions."
     def __init__(self, data):
         self.owner = data['owner']
