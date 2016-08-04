@@ -444,6 +444,12 @@ class ExistDB(object):
     def load(self, xml, path):
         """Insert or overwrite a document in the database.
 
+        .. Note::
+
+            This method will automatically overwrite existing content
+            at the same path without notice.  This is a change from
+            versions prior to 0.20.
+
         :param xml: string or file object with the document contents
         :param path: destination location in the database
         :rtype: boolean indicating success
@@ -463,9 +469,11 @@ class ExistDB(object):
 
         # expect 201 created for new documents, 200 for
         # successful update of an existing document
-        return response.status_code == requests.codes.created or \
-            (overwrite and response.status_code == requests.codes.ok)
-
+        # NOTE: testing shows a 201 response every time (perhaps because
+        # eXist removes the resource before replacing?)
+        # check for either success response
+        return response.status_code in [requests.codes.created,
+                                        requests.codes.ok]
 
     @_wrap_xmlrpc_fault
     def removeDocument(self, name):

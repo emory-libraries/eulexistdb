@@ -405,6 +405,23 @@ class ExistDBTest(unittest.TestCase):
         # attempting to get data from a result that has been released should cause an error
         self.assertRaises(Exception, self.db.getHits, result_id)
 
+    def test_load(self):
+        dbpath = '%s/test-load.xml' % self.COLLECTION
+        # create
+        # NOTE: exist returns indented xml; creating string to match
+        xml = '''<root>
+    <element/>
+</root>'''
+        # load should return True on success
+        self.assertTrue(self.db.load(xml, dbpath))
+        self.assertEqual(xml, self.db.getDocument(dbpath))
+        # update
+        xml = '''<root>
+    <element>value</element>
+</root>'''
+        self.assertTrue(self.db.load(xml, dbpath))
+        self.assertEqual(xml, self.db.getDocument(dbpath))
+
     def test_load_invalid_xml(self):
         """Check that loading invaliid xml raises an exception"""
         xml = '<root><element></root>'
