@@ -33,7 +33,7 @@ Django settings, using the configuration names documented below.
 Projects that use this module should include the following settings in their
 ``settings.py``::
 
-  #Exist DB Settings
+  # Exist DB Settings
   EXISTDB_SERVER_USER = 'user'
   EXISTDB_SERVER_PASSWORD = 'password'
   EXISTDB_SERVER_URL = "http://megaserver.example.com:8042/exist"
