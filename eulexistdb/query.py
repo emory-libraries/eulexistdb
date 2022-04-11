@@ -36,7 +36,6 @@ stand-in replacement in any context that expects one.
 from lxml import etree
 from lxml.builder import ElementMaker
 import re
-from types import BooleanType
 
 from eulxml import xmlmap
 from eulxml.xmlmap import load_xmlobject_from_string
@@ -249,13 +248,13 @@ class QuerySet(object):
 
             # highlighting is only an xquery filter when passed as a string
             elif lookuptype != 'highlight' or \
-                    lookuptype == 'highlight' and not isinstance(value, BooleanType):
+                    lookuptype == 'highlight' and not isinstance(value, bool):
                 qscopy.query.add_filter(xpath, lookuptype, value, combine)
 
             # enable highlighting when a full-text query is used
             if lookuptype == 'fulltext_terms':
                 # boolean highlight setting overrides default
-                if 'highlight' in kwargs and isinstance(kwargs['highlight'], BooleanType):
+                if 'highlight' in kwargs and isinstance(kwargs['highlight'], bool):
                     qscopy._highlight_matches = kwargs['highlight']
                     qscopy.query.highlight = kwargs['highlight']
                 else:
@@ -264,7 +263,7 @@ class QuerySet(object):
 
             if lookuptype == 'highlight':
                 qscopy.query.highlight = value
-                if isinstance(value, BooleanType):
+                if isinstance(value, bool):
                     # boolean - only triggers eXist highlighting in xml return
                     qscopy._highlight_matches = value
                 else:
@@ -933,7 +932,7 @@ class Xquery(object):
         # add search terms for highlighting if requested
         if self.highlight is not None:
 
-            if not isinstance(self.highlight, BooleanType):
+            if not isinstance(self.highlight, bool):
                 # Highlighting results efficiently in eXist is a bit tricky.  We need to run a full-text search so
                 # eXist will enable match highlighting in the result, but we want to return the result even if there are
                 # no matches present. What we're doing here is telling eXist to take the first available version of the
