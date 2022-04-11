@@ -101,7 +101,7 @@ import socket
 import time
 from urllib.parse import urlparse
 import warnings
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 
 try:
     from django.dispatch import Signal
