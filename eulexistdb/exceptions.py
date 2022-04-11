@@ -16,7 +16,7 @@
 
 import socket
 import xmlrpc.client as xmlrpclib
-from urllib import unquote_plus
+from urllib.parse import unquote_plus
 
 class ExistDBException(Exception):
     """A handy wrapper for all errors returned by the eXist server."""
