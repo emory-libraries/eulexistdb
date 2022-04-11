@@ -15,7 +15,7 @@
 #   limitations under the License.
 
 import socket
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 from urllib import unquote_plus
 
 class ExistDBException(Exception):
