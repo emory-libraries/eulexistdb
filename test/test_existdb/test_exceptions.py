@@ -16,7 +16,7 @@
 
 import socket
 import unittest
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 
 from eulexistdb.exceptions import ExistDBException
 
