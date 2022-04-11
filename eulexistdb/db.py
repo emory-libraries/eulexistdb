@@ -99,7 +99,7 @@ import logging
 import requests
 import socket
 import time
-from urllib import splittype
+from urllib import parse
 import urlparse
 import warnings
 import xmlrpclib
@@ -896,7 +896,7 @@ class RequestsTransport(xmlrpclib.Transport):
 
         # determine whether https is needed based on the url
         if url is not None:
-            self.use_https = (splittype(url)[0] == 'https')
+            self.use_https = (parse.urlparse(url).scheme == 'https')
 
     def request(self, host, handler, request_body, verbose):
         """
