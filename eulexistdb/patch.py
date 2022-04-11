@@ -2,7 +2,7 @@
 Manage and apply patches necessary to work around issues in
 third-party libraries.
 """
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 import collections
 from decimal import Decimal
 
