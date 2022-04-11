@@ -17,7 +17,7 @@
 
 from contextlib import contextmanager
 import unittest
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 from urlparse import urlsplit, urlunsplit
 from mock import patch
 
