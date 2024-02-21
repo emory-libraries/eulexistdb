@@ -137,8 +137,7 @@ def _wrap_xmlrpc_fault(f):
 
 xquery_called = None
 if Signal is not None:
-    xquery_called = Signal(providing_args=[
-        "time_taken", "name", "return_value", "args", "kwargs"])
+    xquery_called = Signal()
 
 
 class ExistDB(object):
